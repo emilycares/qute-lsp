@@ -29,6 +29,46 @@ impl Backend {
         self.document_map
             .insert(params.uri.to_string(), rope.clone());
     }
+
+    fn _get_opened_document(
+        &self,
+        uri: &Url,
+    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Rope>> {
+        // when file is open
+        if let Some(document) = self.document_map.get(uri.as_str()) {
+            return Some(document);
+        };
+        None
+    }
+
+    async fn get_document(
+        &self,
+        uri: &Url,
+    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Rope>> {
+        // when file is open
+        if let Some(document) = self._get_opened_document(uri) {
+            return Some(document);
+        };
+
+        let Ok(text) = std::fs::read_to_string(uri.path()) else {
+            eprintln!("Unable to open file and it is also not available on the client");
+            return None;
+        };
+
+        // The file was no opened yet on the client so we have to open it.
+        self.on_change(TextDocumentItem {
+            uri: uri.clone(),
+            text,
+            version: 1,
+            language_id: "".to_owned(),
+        })
+        .await;
+
+        if let Some(document) = self._get_opened_document(uri) {
+            return Some(document);
+        };
+        None
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -78,21 +118,11 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        eprintln!("definition");
-        let range = Range {
-            start: Position {
-                line: 1,
-                character: 1,
-            },
-            end: Position {
-                line: 1,
-                character: 1,
-            },
-        };
         let params = params.text_document_position_params;
         let uri = params.text_document.uri;
+        eprintln!("{:#?}", &uri);
         let position = params.position;
-        let Some(document) = self.document_map.get(uri.as_str()) else {
+        let Some(document) = self.get_document(&uri).await else {
             eprintln!("Document is not opened.");
             return Ok(None);
         };
@@ -101,12 +131,39 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
+        let Some(template_folder) = get_templates_folder_from_template_uri(uri) else {
+            eprintln!("Unable to retrive template folder");
+            return Ok(None);
+        };
+
         if let Some(include) = parser::parse_include(line.to_string()) {
-            eprintln!("{include:#?}");
+            match include {
+                parser::QuteInclude::Basic(reverence) => {
+                    let path = template_reverence_to_path(&reverence, &template_folder);
+                    return Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
+                        Url::from_file_path(path).unwrap(),
+                        Range::default(),
+                    ))))
+                }
+                parser::QuteInclude::Fragment(_) => {
+                    return Ok(None)
+                },
+            }
         }
 
-        Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
-            uri, range,
-        ))))
+        Ok(None)
     }
+}
+
+fn get_templates_folder_from_template_uri(uri: Url) -> Option<String> {
+    let path = uri.path();
+    let pattern = "/src/main/resources/templates/";
+    let Some((root, _)) = path.split_once(pattern) else {
+        return None;
+    };
+    Some(format!("{}{}", root, pattern))
+}
+
+fn template_reverence_to_path(reverence: &str, templates_folder: &str) -> String {
+    format!("{}{}.html", templates_folder, reverence)
 }
