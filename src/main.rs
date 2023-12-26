@@ -66,6 +66,7 @@ impl Backend {
         })
         .await;
 
+        // The file should now be loaded
         if let Some(document) = self._get_opened_document(uri) {
             return Some(document);
         };
@@ -88,9 +89,7 @@ impl LanguageServer for Backend {
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {
-        eprintln!("Started");
-    }
+    async fn initialized(&self, _: InitializedParams) {}
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
@@ -122,7 +121,6 @@ impl LanguageServer for Backend {
     ) -> Result<Option<GotoDefinitionResponse>> {
         let params = params.text_document_position_params;
         let uri = params.text_document.uri;
-        eprintln!("{:#?}", &uri);
         let position = params.position;
         let Some(document) = self.get_document(&uri).await else {
             eprintln!("Document is not opened.");
@@ -141,12 +139,12 @@ impl LanguageServer for Backend {
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
                 QuteInclude::Basic(reference) => {
-                    return Ok(Some(reverence_to_gotodefiniton(&reference, &template_folder)));
+                    return Ok(reverence_to_gotodefiniton(&reference, &template_folder));
                 }
                 QuteInclude::Fragment(fragment) => {
                     let reference = fragment.template;
-                    return Ok(Some(reverence_to_gotodefiniton(&reference, &template_folder)));
-                },
+                    return Ok(reverence_to_gotodefiniton(&reference, &template_folder));
+                }
             }
         }
 
@@ -154,12 +152,18 @@ impl LanguageServer for Backend {
     }
 }
 
-fn reverence_to_gotodefiniton(reference: &str, templates_folder: &str) -> GotoDefinitionResponse {
+fn reverence_to_gotodefiniton(
+    reference: &str,
+    templates_folder: &str,
+) -> Option<GotoDefinitionResponse> {
     let path = template_reverence_to_path(reference, templates_folder);
-    return GotoDefinitionResponse::Scalar(Location::new(
-        Url::from_file_path(path).unwrap(),
+    let Ok(uri) = Url::from_file_path(path) else {
+        return None;
+    };
+    Some(GotoDefinitionResponse::Scalar(Location::new(
+        uri,
         Range::default(),
-    ));
+    )))
 }
 
 fn get_templates_folder_from_template_uri(uri: Url) -> Option<String> {

@@ -15,7 +15,7 @@ pub fn parse_include(line: String) -> Option<QuteInclude> {
         // Not an include line
         return None;
     };
-    let Some((template, _)) = line.split_once(" ") else {
+    let Some((template, _)) = line.split_once(' ') else {
         // Incase of detail. With html params
         let name = line.replace('}', "");
         return Some(QuteInclude::Basic(name));
@@ -31,7 +31,7 @@ pub fn parse_include(line: String) -> Option<QuteInclude> {
     }
 
     let name = template.to_string();
-    return Some(QuteInclude::Basic(name));
+    Some(QuteInclude::Basic(name))
 }
 
 #[cfg(test)]
