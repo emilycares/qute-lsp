@@ -1,3 +1,5 @@
+mod parser;
+
 use dashmap::DashMap;
 use ropey::Rope;
 use tower_lsp::jsonrpc::Result;
@@ -6,19 +8,11 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 #[tokio::main]
 async fn main() {
-    //let file_appender = tracing_appender::rolling::hourly(".", "qute-lsp.log");
-    //let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-    //tracing_subscriber::fmt()
-        //.with_max_level(Level::INFO)
-        //.with_writer(non_blocking)
-        //.init();
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    //info!("Server started");
-
     let (service, socket) = LspService::new(|client| Backend {
-        client,
+        _client: client,
         document_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -26,7 +20,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Backend {
-    client: Client,
+    _client: Client,
     document_map: DashMap<String, Rope>,
 }
 impl Backend {
@@ -42,14 +36,10 @@ impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(
+                    TextDocumentSyncKind::FULL,
+                )),
                 definition_provider: Some(OneOf::Left(true)),
-                workspace: Some(WorkspaceServerCapabilities {
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                        supported: Some(true),
-                        change_notifications: Some(OneOf::Left(true)),
-                    }),
-                    file_operations: None,
-                }),
                 ..ServerCapabilities::default()
             },
             server_info: None,
@@ -65,7 +55,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        eprintln!("open");
         self.on_change(TextDocumentItem {
             uri: params.text_document.uri,
             text: params.text_document.text,
@@ -76,7 +65,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, mut params: DidChangeTextDocumentParams) {
-        eprintln!("change");
         self.on_change(TextDocumentItem {
             uri: params.text_document.uri,
             text: std::mem::take(&mut params.content_changes[0].text),
@@ -101,11 +89,21 @@ impl LanguageServer for Backend {
                 character: 1,
             },
         };
-        let uri = params.text_document_position_params.text_document.uri;
-        //let _document = match self.document_map.get(uri.as_str()) {
-            //Some(rope) => rope,
-            //None => return Ok(None),
-        //};
+        let params = params.text_document_position_params;
+        let uri = params.text_document.uri;
+        let position = params.position;
+        let Some(document) = self.document_map.get(uri.as_str()) else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let Some(line) = document.get_line(position.line.try_into().unwrap_or_default()) else {
+            eprintln!("Unable to read the line referecned");
+            return Ok(None);
+        };
+
+        if let Some(include) = parser::parse_include(line.to_string()) {
+            eprintln!("{include:#?}");
+        }
 
         Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
             uri, range,
