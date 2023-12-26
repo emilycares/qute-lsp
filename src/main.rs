@@ -6,6 +6,8 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+use crate::parser::include::QuteInclude;
+
 #[tokio::main]
 async fn main() {
     let stdin = tokio::io::stdin();
@@ -132,27 +134,32 @@ impl LanguageServer for Backend {
         };
 
         let Some(template_folder) = get_templates_folder_from_template_uri(uri) else {
-            eprintln!("Unable to retrive template folder");
+            eprintln!("Unable to retrieve template folder");
             return Ok(None);
         };
 
-        if let Some(include) = parser::parse_include(line.to_string()) {
+        if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
-                parser::QuteInclude::Basic(reverence) => {
-                    let path = template_reverence_to_path(&reverence, &template_folder);
-                    return Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
-                        Url::from_file_path(path).unwrap(),
-                        Range::default(),
-                    ))))
+                QuteInclude::Basic(reference) => {
+                    return Ok(Some(reverence_to_gotodefiniton(&reference, &template_folder)));
                 }
-                parser::QuteInclude::Fragment(_) => {
-                    return Ok(None)
+                QuteInclude::Fragment(fragment) => {
+                    let reference = fragment.template;
+                    return Ok(Some(reverence_to_gotodefiniton(&reference, &template_folder)));
                 },
             }
         }
 
         Ok(None)
     }
+}
+
+fn reverence_to_gotodefiniton(reference: &str, templates_folder: &str) -> GotoDefinitionResponse {
+    let path = template_reverence_to_path(reference, templates_folder);
+    return GotoDefinitionResponse::Scalar(Location::new(
+        Url::from_file_path(path).unwrap(),
+        Range::default(),
+    ));
 }
 
 fn get_templates_folder_from_template_uri(uri: Url) -> Option<String> {

@@ -1,12 +1,12 @@
 #[derive(Debug, PartialEq)]
 pub enum QuteInclude {
     Basic(String),
-    Fragment(QuteIncludeFragement),
+    Fragment(QuteIncludeFragment),
 }
 #[derive(Debug, PartialEq)]
-pub struct QuteIncludeFragement {
-    template: String,
-    fragment: String,
+pub struct QuteIncludeFragment {
+    pub template: String,
+    pub fragment: String,
 }
 
 /// This will return the template name for a include section
@@ -23,7 +23,7 @@ pub fn parse_include(line: String) -> Option<QuteInclude> {
     // Incase of fragment
     if let Some((template, fragment)) = line.split_once('$') {
         if let Some((fragment, _)) = fragment.split_once(' ') {
-            return Some(QuteInclude::Fragment(QuteIncludeFragement {
+            return Some(QuteInclude::Fragment(QuteIncludeFragment {
                 template: template.to_string(),
                 fragment: fragment.to_string(),
             }));
@@ -36,7 +36,8 @@ pub fn parse_include(line: String) -> Option<QuteInclude> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{QuteInclude, QuteIncludeFragement};
+
+    use crate::parser::include::{QuteInclude, QuteIncludeFragment};
 
     use super::parse_include;
     use pretty_assertions::assert_eq;
@@ -60,7 +61,7 @@ mod tests {
     fn fragment() {
         assert_eq!(
             parse_include("{#include select$user target=target /}".to_string()),
-            Some(QuteInclude::Fragment(QuteIncludeFragement {
+            Some(QuteInclude::Fragment(QuteIncludeFragment {
                 template: "select".to_string(),
                 fragment: "user".to_string()
             }))
