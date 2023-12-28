@@ -2,6 +2,7 @@ mod parser;
 
 use dashmap::DashMap;
 use ropey::Rope;
+use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -83,6 +84,12 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 definition_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        ..CodeActionOptions::default()
+                    },
+                )),
                 ..ServerCapabilities::default()
             },
             server_info: None,
@@ -148,6 +155,30 @@ impl LanguageServer for Backend {
             }
         }
 
+        Ok(None)
+    }
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let Some(document) = self.get_document(&params.text_document.uri).await else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let pos = params.range.start;
+        if let Ok(can) = parser::document::could_extract(
+            &document.to_string(),
+            pos.line.try_into().unwrap(),
+            pos.character.try_into().unwrap(),
+        ) {
+            if can {
+                return Ok(Some(vec![CodeActionOrCommand::Command(Command {
+                    title: "Extract element".to_string(),
+                    command: "".to_string(),
+                    arguments: None,
+                })]));
+            }
+        }
+        Ok(None)
+    }
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
         Ok(None)
     }
 }
