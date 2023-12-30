@@ -1,11 +1,13 @@
 mod parser;
 
 use dashmap::DashMap;
+use parser::document::ExtractionKind;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tree_sitter::Point;
 
 use crate::parser::include::QuteInclude;
 
@@ -162,23 +164,44 @@ impl LanguageServer for Backend {
             eprintln!("Document is not opened.");
             return Ok(None);
         };
-        let pos = params.range.start;
-        if let Ok(can) = parser::document::could_extract(
-            &document.to_string(),
-            pos.line.try_into().unwrap(),
-            pos.character.try_into().unwrap(),
-        ) {
-            if can {
-                return Ok(Some(vec![CodeActionOrCommand::Command(Command {
-                    title: "Extract element".to_string(),
-                    command: "".to_string(),
-                    arguments: None,
-                })]));
-            }
+        let point = params.range.start;
+        let point = Point {
+            row: point.line.try_into().unwrap_or_default(),
+            column: point.character.try_into().unwrap_or_default(),
+        };
+        let extract_opions: Vec<CodeActionOrCommand> =
+            parser::document::check_extract(&document.to_string(), point)
+                .iter()
+                .map(|kind| match kind {
+                    ExtractionKind::AddFragement => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Add Fragment frame".to_string(),
+                            command: "AddFragement".to_string(),
+                            arguments: None,
+                        })
+                    }
+                    ExtractionKind::ExtractAsFragment => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Extract as fragment".to_string(),
+                            command: "ExtractAsFragment".to_string(),
+                            arguments: None,
+                        })
+                    }
+                    ExtractionKind::ExtractAsFile => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Extract as file".to_string(),
+                            command: "ExtractAsFile".to_string(),
+                            arguments: None,
+                        })
+                    }
+                })
+                .collect();
+        if extract_opions.len() > 0 {
+            return Ok(Some(extract_opions));
         }
         Ok(None)
     }
-    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+    async fn execute_command(&self, _params: ExecuteCommandParams) -> Result<Option<Value>> {
         Ok(None)
     }
 }
