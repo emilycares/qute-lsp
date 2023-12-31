@@ -169,6 +169,11 @@ impl LanguageServer for Backend {
             row: point.line.try_into().unwrap_or_default(),
             column: point.character.try_into().unwrap_or_default(),
         };
+        let arguments = Some(vec![
+            Value::String(params.text_document.uri.to_string()),
+            Value::Number(point.row.into()),
+            Value::Number(point.column.into()),
+        ]);
         let extract_opions: Vec<CodeActionOrCommand> =
             parser::document::check_extract(&document.to_string(), point)
                 .iter()
@@ -176,22 +181,22 @@ impl LanguageServer for Backend {
                     ExtractionKind::AddFragement => {
                         return CodeActionOrCommand::Command(Command {
                             title: "Add Fragment frame".to_string(),
-                            command: "AddFragement".to_string(),
-                            arguments: None,
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
                         })
                     }
                     ExtractionKind::ExtractAsFragment => {
                         return CodeActionOrCommand::Command(Command {
                             title: "Extract as fragment".to_string(),
-                            command: "ExtractAsFragment".to_string(),
-                            arguments: None,
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
                         })
                     }
                     ExtractionKind::ExtractAsFile => {
                         return CodeActionOrCommand::Command(Command {
                             title: "Extract as file".to_string(),
-                            command: "ExtractAsFile".to_string(),
-                            arguments: None,
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
                         })
                     }
                 })
@@ -201,7 +206,42 @@ impl LanguageServer for Backend {
         }
         Ok(None)
     }
-    async fn execute_command(&self, _params: ExecuteCommandParams) -> Result<Option<Value>> {
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        let mut uri: String;
+        let mut row: usize = 0;
+        let mut column: usize = 0;
+        let mut i = 0;
+        for arguments in params.arguments {
+            match arguments {
+                Value::String(string) => {
+                    if i == 0 {
+                        uri = string;
+                    }
+                },
+                Value::Number(number) => {
+                    if i == 1 {
+                        row = number.as_u64().unwrap_or_default().try_into().unwrap();
+                    }
+                    if i == 2 {
+                        column = number.as_u64().unwrap_or_default().try_into().unwrap();
+                    }
+                },
+                Value::Null => (),
+                Value::Bool(_) => (),
+                Value::Array(_) => (),
+                Value::Object(_) => (),
+            }
+
+            i += 1;
+        }
+        let point = Point { row, column};
+        match params.command.parse::<ExtractionKind>() {
+            Ok(ExtractionKind::AddFragement) => todo!(),
+            Ok(ExtractionKind::ExtractAsFile) => todo!(),
+            Ok(ExtractionKind::ExtractAsFragment) => todo!(),
+            Err(_) => (),
+        };
+
         Ok(None)
     }
 }

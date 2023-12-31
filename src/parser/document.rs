@@ -1,4 +1,6 @@
 
+use std::str::FromStr;
+
 use tree_sitter::{Language, Node, Parser, Point, Query, QueryCapture, QueryCursor, Tree};
 
 #[derive(Debug, PartialEq)]
@@ -13,6 +15,29 @@ pub enum ExtractionKind {
     AddFragement,
     ExtractAsFile,
     ExtractAsFragment,
+}
+
+impl ToString for ExtractionKind {
+    fn to_string(&self) -> String {
+        match self {
+            ExtractionKind::AddFragement => "AddFragement",
+            ExtractionKind::ExtractAsFile => "ExtractAsFile",
+            ExtractionKind::ExtractAsFragment => "ExtractAsFragment",
+        }.to_string()
+    }
+}
+
+impl FromStr for ExtractionKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "AddFragement" => Ok(Self::AddFragement),
+            "ExtractAsFile" => Ok(Self::ExtractAsFile),
+            "ExtractAsFragment" => Ok(Self::ExtractAsFragment),
+            _ => Err(())
+        }
+    }
 }
 
 pub fn check_extract(content: &str, point: Point) -> Vec<ExtractionKind> {
@@ -140,9 +165,9 @@ fn get_tree(content: &str, language: Language) -> Result<Tree, TreesitterError> 
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::document::{get_element_node, TreesitterError};
+    use crate::parser::document::{get_element_node, TreesitterError, ExtractionKind};
 
-    use super::{could_extract, get_id_of_node, get_node_at_point, get_tree, range_includes_point};
+    use super::{check_extract, get_id_of_node, get_node_at_point, get_tree, range_includes_point};
     use pretty_assertions::assert_eq;
     use tree_sitter::{Point, Range};
     const DOCUMENT: &str = "
@@ -162,14 +187,14 @@ mod tests {
     #[test]
     fn could_extract_basic() {
         let point = tree_sitter::Point { row: 7, column: 2 };
-        let out = could_extract(DOCUMENT, point);
-        assert_eq!(out, Ok(true));
+        let out = check_extract(DOCUMENT, point);
+        assert_eq!(out, vec![ExtractionKind::AddFragement, ExtractionKind::ExtractAsFile, ExtractionKind::ExtractAsFragment]);
     }
     #[test]
     fn could_extract_no_id() {
         let point = tree_sitter::Point { row: 8, column: 2 };
-        let out = could_extract(DOCUMENT, point);
-        assert_eq!(out, Err(TreesitterError::NoIdFoundOnElement));
+        let out = check_extract(DOCUMENT, point);
+        assert_eq!(out, vec![ExtractionKind::AddFragement]);
     }
     #[test]
     fn get_id_of_node_basic() {
