@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
-use tower_lsp::lsp_types::{TextEdit, Url};
+use tower_lsp::lsp_types::{Position, TextEdit, Url};
 use tree_sitter::{Language, Node, Parser, Point, Query, QueryCapture, QueryCursor, Tree};
 
 #[derive(Debug, PartialEq)]
@@ -98,11 +98,64 @@ pub fn add_fragment(
         ],
     )]))
 }
+
 pub fn extract_as_file(
     url: Url,
     point: Point,
     content: &str,
 ) -> Result<HashMap<Url, Vec<TextEdit>>, TreesitterError> {
+    let base_extract = base_extract(content, point, url.to_string())?;
+    Ok(HashMap::from([
+        (
+            url.clone(),
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::new(base_extract.start, base_extract.end),
+                format!("{{#include {} /}}", base_extract.id),
+            )],
+        ),
+        (
+            base_extract.new_url,
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::default(),
+                base_extract.new_content,
+            )],
+        ),
+    ]))
+}
+
+pub fn extract_as_fragment(
+    url: Url,
+    point: Point,
+    content: &str,
+) -> Result<HashMap<Url, Vec<TextEdit>>, TreesitterError> {
+    let base_extract = base_extract(content, point, url.to_string())?;
+    Ok(HashMap::from([
+        (
+            url.clone(),
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::new(base_extract.start, base_extract.end),
+                format!("{{#include {}${} /}}", base_extract.id, base_extract.id),
+            )],
+        ),
+        (
+            base_extract.new_url,
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::default(),
+                format!("{{#fragment id={}}}\n{}\n{{/fragment}}", base_extract.id, base_extract.new_content)
+            )],
+        ),
+    ]))
+}
+
+struct BaseExtract {
+    start: Position,
+    end: Position,
+    id: String,
+    new_url: tower_lsp::lsp_types::Url,
+    new_content: String,
+}
+
+fn base_extract(content: &str, point: Point, url: String) -> Result<BaseExtract, TreesitterError> {
     // parse
     let language = tree_sitter_html::language();
     let tree = get_tree(content, language)?;
@@ -116,28 +169,20 @@ pub fn extract_as_file(
 
     // get content for generation
     let id = get_id_of_node(language, node, content)?;
-    let Ok(inner_conent) = node.utf8_text(content.as_bytes()) else {
+    let Ok(new_content) = node.utf8_text(content.as_bytes()) else {
         return Err(TreesitterError::UnableToGetContent);
     };
-    let Some(new_url) = get_url_with_id(url.to_string(), &id) else {
+    let Some(new_url) = get_url_with_id(url, &id) else {
         return Err(TreesitterError::UnableToGetContent);
     };
-    Ok(HashMap::from([
-        (
-            url.clone(),
-            vec![TextEdit::new(
-                tower_lsp::lsp_types::Range::new(start, end),
-                format!("{{#include {} /}}", &id),
-            )],
-        ),
-        (
-            new_url,
-            vec![TextEdit::new(
-                tower_lsp::lsp_types::Range::default(),
-                inner_conent.to_string(),
-            )],
-        ),
-    ]))
+
+    Ok(BaseExtract {
+        start,
+        end,
+        id,
+        new_url,
+        new_content: new_content.to_string(),
+    })
 }
 
 fn get_url_with_id(url: String, id: &str) -> Option<Url> {

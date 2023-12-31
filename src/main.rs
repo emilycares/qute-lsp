@@ -234,7 +234,15 @@ impl LanguageServer for Backend {
                     }
                 }
             }
-            Ok(ExtractionKind::ExtractAsFragment) => None,
+            Ok(ExtractionKind::ExtractAsFragment) => {
+                match parser::document::extract_as_fragment(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
             Err(_) => None,
         };
 
