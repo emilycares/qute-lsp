@@ -1,10 +1,13 @@
 mod parser;
 
 use dashmap::DashMap;
+use parser::document::ExtractionKind;
 use ropey::Rope;
+use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tree_sitter::Point;
 
 use crate::parser::include::QuteInclude;
 
@@ -14,7 +17,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| Backend {
-        _client: client,
+        client,
         document_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -22,7 +25,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Backend {
-    _client: Client,
+    client: Client,
     document_map: DashMap<String, Rope>,
 }
 impl Backend {
@@ -83,6 +86,12 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 definition_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        ..CodeActionOptions::default()
+                    },
+                )),
                 ..ServerCapabilities::default()
             },
             server_info: None,
@@ -146,6 +155,109 @@ impl LanguageServer for Backend {
                     return Ok(reverence_to_gotodefiniton(&reference, &template_folder));
                 }
             }
+        }
+
+        Ok(None)
+    }
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let Some(document) = self.get_document(&params.text_document.uri).await else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let point = params.range.start;
+        let point = Point {
+            row: point.line.try_into().unwrap_or_default(),
+            column: point.character.try_into().unwrap_or_default(),
+        };
+        let arguments = Some(vec![
+            Value::String(params.text_document.uri.to_string()),
+            Value::Number(point.row.into()),
+            Value::Number(point.column.into()),
+        ]);
+        let extract_opions: Vec<CodeActionOrCommand> =
+            parser::document::check_extract(&document.to_string(), point)
+                .iter()
+                .map(|kind| match kind {
+                    ExtractionKind::AddFragement => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Add Fragment frame".to_string(),
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
+                        })
+                    }
+                    ExtractionKind::ExtractAsFragment => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Extract as fragment".to_string(),
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
+                        })
+                    }
+                    ExtractionKind::ExtractAsFile => {
+                        return CodeActionOrCommand::Command(Command {
+                            title: "Extract as file".to_string(),
+                            command: kind.to_string(),
+                            arguments: arguments.clone(),
+                        })
+                    }
+                })
+                .collect();
+        if extract_opions.len() > 0 {
+            return Ok(Some(extract_opions));
+        }
+        Ok(None)
+    }
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        let (point, uri) = parser::commandargs::parse(params.clone());
+        let Some(url) = uri else {
+            return Ok(None);
+        };
+        let Some(document) = self.get_document(&url).await else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let changes = match params.command.parse::<ExtractionKind>() {
+            Ok(ExtractionKind::AddFragement) => {
+                match parser::document::add_fragment(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
+            Ok(ExtractionKind::ExtractAsFile) => {
+                match parser::document::extract_as_file(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
+            Ok(ExtractionKind::ExtractAsFragment) => {
+                match parser::document::extract_as_fragment(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
+            Err(_) => None,
+        };
+
+        match changes {
+            Some(changes) => {
+                let _ = self
+                    .client
+                    .apply_edit(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    })
+                    .await;
+            }
+            None => todo!(),
         }
 
         Ok(None)
