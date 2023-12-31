@@ -1,6 +1,6 @@
+use std::{collections::HashMap, path::Path, str::FromStr};
 
-use std::str::FromStr;
-
+use tower_lsp::lsp_types::{TextEdit, Url};
 use tree_sitter::{Language, Node, Parser, Point, Query, QueryCapture, QueryCursor, Tree};
 
 #[derive(Debug, PartialEq)]
@@ -9,6 +9,7 @@ pub enum TreesitterError {
     NotCorrectDocumentSyntax,
     NoNodeFound,
     NoIdFoundOnElement,
+    UnableToGetContent,
 }
 #[derive(Debug, PartialEq)]
 pub enum ExtractionKind {
@@ -23,7 +24,8 @@ impl ToString for ExtractionKind {
             ExtractionKind::AddFragement => "AddFragement",
             ExtractionKind::ExtractAsFile => "ExtractAsFile",
             ExtractionKind::ExtractAsFragment => "ExtractAsFragment",
-        }.to_string()
+        }
+        .to_string()
     }
 }
 
@@ -35,7 +37,7 @@ impl FromStr for ExtractionKind {
             "AddFragement" => Ok(Self::AddFragement),
             "ExtractAsFile" => Ok(Self::ExtractAsFile),
             "ExtractAsFragment" => Ok(Self::ExtractAsFragment),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -66,6 +68,96 @@ pub fn check_extract(content: &str, point: Point) -> Vec<ExtractionKind> {
     out
 }
 
+pub fn add_fragment(
+    uri: Url,
+    point: Point,
+    content: &str,
+) -> Result<HashMap<Url, Vec<TextEdit>>, TreesitterError> {
+    // parse
+    let language = tree_sitter_html::language();
+    let tree = get_tree(content, language)?;
+    let node = get_node_at_point(&tree, point)?;
+    let node = get_element_node(node)?;
+
+    // get edit range
+    let inner = node.range();
+    let end = to_lsp_position(inner.end_point);
+    let start = to_lsp_position(inner.start_point);
+
+    Ok(HashMap::from([(
+        uri,
+        vec![
+            TextEdit::new(
+                tower_lsp::lsp_types::Range::new(end, end),
+                "\n{/fragment}".to_string(),
+            ),
+            TextEdit::new(
+                tower_lsp::lsp_types::Range::new(start, start),
+                "{#fragment id=NEW_FRAGMENT }\n".to_string(),
+            ),
+        ],
+    )]))
+}
+pub fn extract_as_file(
+    url: Url,
+    point: Point,
+    content: &str,
+) -> Result<HashMap<Url, Vec<TextEdit>>, TreesitterError> {
+    // parse
+    let language = tree_sitter_html::language();
+    let tree = get_tree(content, language)?;
+    let node = get_node_at_point(&tree, point)?;
+    let node = get_element_node(node)?;
+
+    // get edit range
+    let inner = node.range();
+    let end = to_lsp_position(inner.end_point);
+    let start = to_lsp_position(inner.start_point);
+
+    // get content for generation
+    let id = get_id_of_node(language, node, content)?;
+    let Ok(inner_conent) = node.utf8_text(content.as_bytes()) else {
+        return Err(TreesitterError::UnableToGetContent);
+    };
+    let Some(new_url) = get_url_with_id(url.to_string(), &id) else {
+        return Err(TreesitterError::UnableToGetContent);
+    };
+    Ok(HashMap::from([
+        (
+            url.clone(),
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::new(start, end),
+                format!("{{#include {} /}}", &id),
+            )],
+        ),
+        (
+            new_url,
+            vec![TextEdit::new(
+                tower_lsp::lsp_types::Range::default(),
+                inner_conent.to_string(),
+            )],
+        ),
+    ]))
+}
+
+fn get_url_with_id(url: String, id: &str) -> Option<Url> {
+    let Some(folder) = Path::new(&url).parent() else {
+        return None;
+    };
+    let path = format!("{}/{}.html", folder.to_str().unwrap_or_default(), id);
+    let Ok(path) = Url::from_str(&path) else {
+        return None;
+    };
+    Some(path)
+}
+
+fn to_lsp_position(point: Point) -> tower_lsp::lsp_types::Position {
+    tower_lsp::lsp_types::Position::new(
+        point.row.try_into().unwrap_or_default(),
+        point.column.try_into().unwrap_or_default(),
+    )
+}
+
 fn get_id_of_node<'a>(
     language: Language,
     node: Node<'a>,
@@ -75,19 +167,21 @@ fn get_id_of_node<'a>(
     let query = "(start_tag
   (attribute
      (attribute_name) @_arrname
-     (quoted_attribute_value (attribute_value)) @_value
+     (quoted_attribute_value
+       (attribute_value) @_value
+       (#eq? @_arrname \"id\")
+     ) 
     )
-  (#eq? @_arrname \"id\")
-  ) @element";
+  )";
     let query = match Query::new(language, query) {
         Ok(query) => query,
         Err(_) => return Err(TreesitterError::UnableToParse),
     };
     let captures = cursor.captures(&query, node, content.as_bytes());
-    let captures: Vec<&QueryCapture> = captures.into_iter().flat_map(|(c, _)| c.captures).collect();
     let matches: Vec<&str> = captures
         .into_iter()
-        .filter(|c| c.node.kind() == "quoted_attribute_value")
+        .flat_map(|(c, _)| c.captures)
+        .filter(|c| c.node.kind() == "attribute_value")
         .map(|c| c.node.utf8_text(content.as_bytes()))
         .filter(|c| c.is_ok())
         .map(|c| c.unwrap())
@@ -100,7 +194,7 @@ fn get_id_of_node<'a>(
         .first()
         .expect("There must be a entry a check was made before");
 
-    Ok(id.replace('"', "").replace('\'', "").to_string())
+    Ok(id.trim().to_string())
 }
 
 fn range_includes_point(range: tree_sitter::Range, point: Point) -> bool {
@@ -165,7 +259,7 @@ fn get_tree(content: &str, language: Language) -> Result<Tree, TreesitterError> 
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::document::{get_element_node, TreesitterError, ExtractionKind};
+    use crate::parser::document::{get_element_node, ExtractionKind};
 
     use super::{check_extract, get_id_of_node, get_node_at_point, get_tree, range_includes_point};
     use pretty_assertions::assert_eq;
@@ -188,7 +282,14 @@ mod tests {
     fn could_extract_basic() {
         let point = tree_sitter::Point { row: 7, column: 2 };
         let out = check_extract(DOCUMENT, point);
-        assert_eq!(out, vec![ExtractionKind::AddFragement, ExtractionKind::ExtractAsFile, ExtractionKind::ExtractAsFragment]);
+        assert_eq!(
+            out,
+            vec![
+                ExtractionKind::AddFragement,
+                ExtractionKind::ExtractAsFile,
+                ExtractionKind::ExtractAsFragment
+            ]
+        );
     }
     #[test]
     fn could_extract_no_id() {

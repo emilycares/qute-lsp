@@ -17,7 +17,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| Backend {
-        _client: client,
+        client,
         document_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -25,7 +25,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Backend {
-    _client: Client,
+    client: Client,
     document_map: DashMap<String, Rope>,
 }
 impl Backend {
@@ -207,40 +207,50 @@ impl LanguageServer for Backend {
         Ok(None)
     }
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
-        let mut uri: String;
-        let mut row: usize = 0;
-        let mut column: usize = 0;
-        let mut i = 0;
-        for arguments in params.arguments {
-            match arguments {
-                Value::String(string) => {
-                    if i == 0 {
-                        uri = string;
-                    }
-                },
-                Value::Number(number) => {
-                    if i == 1 {
-                        row = number.as_u64().unwrap_or_default().try_into().unwrap();
-                    }
-                    if i == 2 {
-                        column = number.as_u64().unwrap_or_default().try_into().unwrap();
-                    }
-                },
-                Value::Null => (),
-                Value::Bool(_) => (),
-                Value::Array(_) => (),
-                Value::Object(_) => (),
-            }
-
-            i += 1;
-        }
-        let point = Point { row, column};
-        match params.command.parse::<ExtractionKind>() {
-            Ok(ExtractionKind::AddFragement) => todo!(),
-            Ok(ExtractionKind::ExtractAsFile) => todo!(),
-            Ok(ExtractionKind::ExtractAsFragment) => todo!(),
-            Err(_) => (),
+        let (point, uri) = parser::commandargs::parse(params.clone());
+        let Some(url) = uri else {
+            return Ok(None);
         };
+        let Some(document) = self.get_document(&url).await else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let changes = match params.command.parse::<ExtractionKind>() {
+            Ok(ExtractionKind::AddFragement) => {
+                match parser::document::add_fragment(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
+            Ok(ExtractionKind::ExtractAsFile) => {
+                match parser::document::extract_as_file(url, point, &document.to_string()) {
+                    Ok(changes) => Some(changes),
+                    Err(e) => {
+                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        None
+                    }
+                }
+            }
+            Ok(ExtractionKind::ExtractAsFragment) => None,
+            Err(_) => None,
+        };
+
+        match changes {
+            Some(changes) => {
+                let _ = self
+                    .client
+                    .apply_edit(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    })
+                    .await;
+            }
+            None => todo!(),
+        }
 
         Ok(None)
     }
