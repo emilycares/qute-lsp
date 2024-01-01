@@ -179,19 +179,17 @@ impl LanguageServer for Backend {
                 .iter()
                 .map(|kind| match kind {
                     ExtractionKind::AddFragement => CodeActionOrCommand::Command(Command {
-                        title: "Add Fragment frame".to_string(),
+                        title: "Add fragment frame".to_string(),
                         command: kind.to_string(),
                         arguments: arguments.clone(),
                     }),
-
-                    ExtractionKind::ExtractAsFragment => CodeActionOrCommand::Command(Command {
-                        title: "Extract as fragment".to_string(),
-                        command: kind.to_string(),
-                        arguments: arguments.clone(),
-                    }),
-
                     ExtractionKind::ExtractAsFile => CodeActionOrCommand::Command(Command {
                         title: "Extract as file".to_string(),
+                        command: kind.to_string(),
+                        arguments: arguments.clone(),
+                    }),
+                    ExtractionKind::ExtractAsFragment => CodeActionOrCommand::Command(Command {
+                        title: "Extract as fragment".to_string(),
                         command: kind.to_string(),
                         arguments: arguments.clone(),
                     }),
