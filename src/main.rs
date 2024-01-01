@@ -140,7 +140,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let Some(template_folder) = get_templates_folder_from_template_uri(uri) else {
+        let Some(template_folder) = get_templates_folder_from_template_uri(uri.path()) else {
             eprintln!("Unable to retrieve template folder");
             return Ok(None);
         };
@@ -274,8 +274,7 @@ fn reverence_to_gotodefiniton(
     )))
 }
 
-fn get_templates_folder_from_template_uri(uri: Url) -> Option<String> {
-    let path = uri.path();
+pub fn get_templates_folder_from_template_uri(path: &str) -> Option<String> {
     let pattern = "/src/main/resources/templates/";
     let Some((root, _)) = path.split_once(pattern) else {
         return None;
