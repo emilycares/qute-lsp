@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use tower_lsp::lsp_types::{Position, TextEdit, Url};
-use tree_sitter::{Language, Node, Parser, Point, Query, QueryCapture, QueryCursor, Tree};
+use tree_sitter::{Language, Node, Parser, Point, Query, QueryCursor, Tree};
 
 #[derive(Debug, PartialEq)]
 pub enum TreesitterError {
@@ -141,7 +141,10 @@ pub fn extract_as_fragment(
             base_extract.new_url,
             vec![TextEdit::new(
                 tower_lsp::lsp_types::Range::default(),
-                format!("{{#fragment id={}}}\n{}\n{{/fragment}}", base_extract.id, base_extract.new_content)
+                format!(
+                    "{{#fragment id={}}}\n{}\n{{/fragment}}",
+                    base_extract.id, base_extract.new_content
+                ),
             )],
         ),
     ]))
@@ -228,11 +231,10 @@ fn get_id_of_node<'a>(
         .flat_map(|(c, _)| c.captures)
         .filter(|c| c.node.kind() == "attribute_value")
         .map(|c| c.node.utf8_text(content.as_bytes()))
-        .filter(|c| c.is_ok())
-        .map(|c| c.unwrap())
+        .filter_map(|c| c.ok())
         .collect();
 
-    if matches.len() == 0 {
+    if matches.is_empty() {
         return Err(TreesitterError::NoIdFoundOnElement);
     }
     let id = matches
@@ -254,7 +256,7 @@ fn range_includes_point(range: tree_sitter::Range, point: Point) -> bool {
             return true;
         }
     }
-    return false;
+    false
 }
 
 fn get_node_at_point(tree: &Tree, point: Point) -> Result<Node, TreesitterError> {
@@ -275,7 +277,7 @@ fn get_node_at_point(tree: &Tree, point: Point) -> Result<Node, TreesitterError>
     Ok(cursor.node())
 }
 
-fn get_element_node<'a>(node: Node<'a>) -> Result<Node<'a>, TreesitterError> {
+fn get_element_node(node: Node<'_>) -> Result<Node<'_>, TreesitterError> {
     let mut node = node;
     loop {
         if node.kind() == "element" {

@@ -178,30 +178,27 @@ impl LanguageServer for Backend {
             parser::document::check_extract(&document.to_string(), point)
                 .iter()
                 .map(|kind| match kind {
-                    ExtractionKind::AddFragement => {
-                        return CodeActionOrCommand::Command(Command {
-                            title: "Add Fragment frame".to_string(),
-                            command: kind.to_string(),
-                            arguments: arguments.clone(),
-                        })
-                    }
-                    ExtractionKind::ExtractAsFragment => {
-                        return CodeActionOrCommand::Command(Command {
-                            title: "Extract as fragment".to_string(),
-                            command: kind.to_string(),
-                            arguments: arguments.clone(),
-                        })
-                    }
-                    ExtractionKind::ExtractAsFile => {
-                        return CodeActionOrCommand::Command(Command {
-                            title: "Extract as file".to_string(),
-                            command: kind.to_string(),
-                            arguments: arguments.clone(),
-                        })
-                    }
+                    ExtractionKind::AddFragement => CodeActionOrCommand::Command(Command {
+                        title: "Add Fragment frame".to_string(),
+                        command: kind.to_string(),
+                        arguments: arguments.clone(),
+                    }),
+
+                    ExtractionKind::ExtractAsFragment => CodeActionOrCommand::Command(Command {
+                        title: "Extract as fragment".to_string(),
+                        command: kind.to_string(),
+                        arguments: arguments.clone(),
+                    }),
+
+                    ExtractionKind::ExtractAsFile => CodeActionOrCommand::Command(Command {
+                        title: "Extract as file".to_string(),
+                        command: kind.to_string(),
+                        arguments: arguments.clone(),
+                    }),
                 })
                 .collect();
-        if extract_opions.len() > 0 {
+
+        if !extract_opions.is_empty() {
             return Ok(Some(extract_opions));
         }
         Ok(None)
@@ -246,19 +243,19 @@ impl LanguageServer for Backend {
             Err(_) => None,
         };
 
-        match changes {
-            Some(changes) => {
-                let _ = self
-                    .client
-                    .apply_edit(WorkspaceEdit {
-                        changes: Some(changes),
-                        document_changes: None,
-                        change_annotations: None,
-                    })
-                    .await;
+        if let Some(changes) = changes {
+            if let Err(e) = tokio::time::timeout(
+                std::time::Duration::from_millis(10),
+                self.client.apply_edit(WorkspaceEdit {
+                    changes: Some(changes),
+                    ..Default::default()
+                }),
+            )
+            .await
+            {
+                eprintln!("Did not get a response from lsp client: {e:?}");
             }
-            None => todo!(),
-        }
+        };
 
         Ok(None)
     }
@@ -270,6 +267,7 @@ fn reverence_to_gotodefiniton(
 ) -> Option<GotoDefinitionResponse> {
     let path = template_reverence_to_path(reference, templates_folder);
     let Ok(uri) = Url::from_file_path(path) else {
+        eprintln!("Unable to get url from file path");
         return None;
     };
     Some(GotoDefinitionResponse::Scalar(Location::new(

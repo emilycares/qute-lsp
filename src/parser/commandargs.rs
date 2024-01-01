@@ -8,8 +8,7 @@ pub fn parse(params: ExecuteCommandParams) -> (Point, Option<Url>) {
     let mut uri: String = String::new();
     let mut row: usize = 0;
     let mut column: usize = 0;
-    let mut i = 0;
-    for arguments in params.arguments {
+    for (i, arguments) in params.arguments.into_iter().enumerate() {
         match arguments {
             Value::String(string) => {
                 if i == 0 {
@@ -37,8 +36,6 @@ pub fn parse(params: ExecuteCommandParams) -> (Point, Option<Url>) {
             Value::Array(_) => (),
             Value::Object(_) => (),
         }
-
-        i += 1;
     }
     let point = Point { row, column };
     let url = Url::from_str(&uri).ok();
