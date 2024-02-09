@@ -1,6 +1,8 @@
 mod parser;
+mod file_utils;
 
 use dashmap::DashMap;
+use parser::fragemnt::{Fragment, self};
 use parser::document::ExtractionKind;
 use ropey::Rope;
 use serde_json::Value;
@@ -19,6 +21,7 @@ async fn main() {
     let (service, socket) = LspService::new(|client| Backend {
         client,
         document_map: DashMap::new(),
+        fragment_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
@@ -27,6 +30,7 @@ async fn main() {
 struct Backend {
     client: Client,
     document_map: DashMap<String, Rope>,
+    fragment_map: DashMap<String, Fragment>,
 }
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
@@ -98,7 +102,12 @@ impl LanguageServer for Backend {
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {}
+    async fn initialized(&self, _: InitializedParams) {
+        let fragments = fragemnt::scan_templates();
+        for fragemnt in fragments {
+            self.fragment_map.insert(fragemnt.id.clone(), fragemnt);
+        }
+    }
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
@@ -140,10 +149,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let Some(template_folder) = get_templates_folder_from_template_uri(uri.path()) else {
-            eprintln!("Unable to retrieve template folder");
-            return Ok(None);
-        };
+        let template_folder = get_templates_folder();
 
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
@@ -274,12 +280,8 @@ fn reverence_to_gotodefiniton(
     )))
 }
 
-pub fn get_templates_folder_from_template_uri(path: &str) -> Option<String> {
-    let pattern = "/src/main/resources/templates/";
-    let Some((root, _)) = path.split_once(pattern) else {
-        return None;
-    };
-    Some(format!("{}{}", root, pattern))
+pub const fn get_templates_folder() -> &'static str {
+    "./src/main/resources/templates/"
 }
 
 fn template_reverence_to_path(reverence: &str, templates_folder: &str) -> String {
