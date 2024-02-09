@@ -1,3 +1,6 @@
+use dashmap::DashMap;
+use tower_lsp::lsp_types::CompletionItem;
+
 use crate::{file_utils::find_files, get_templates_folder};
 use std::{
     fs,
@@ -7,6 +10,7 @@ use std::{
 #[derive(Debug, PartialEq)]
 pub struct Fragment {
     pub id: String,
+    pub source: String,
 }
 #[derive(Debug, PartialEq)]
 pub struct Document {
@@ -22,7 +26,9 @@ pub fn scan_templates() -> Vec<Fragment> {
             .into_iter()
             .filter_map(|p| {
                 if let Ok(con) = fs::read_to_string(p.clone()) {
-                    return Some((p.clone(), scan_fragments(con)));
+                    if let Some(filename) = p.to_str() {
+                        return Some((p.clone(), scan_fragments(con, filename.to_string())));
+                    }
                 }
                 None
             })
@@ -32,6 +38,7 @@ pub fn scan_templates() -> Vec<Fragment> {
                     .iter()
                     .map(|fragment| Fragment {
                         id: prefix.clone() + &fragment.id,
+                        source: fragment.source.clone(),
                     })
                     .collect::<Vec<_>>();
             })
@@ -82,7 +89,7 @@ fn get_name(p: &PathBuf) -> Option<String> {
     None
 }
 
-pub fn scan_fragments(content: String) -> Vec<Fragment> {
+pub fn scan_fragments(content: String, source: String) -> Vec<Fragment> {
     content
         .lines()
         .map(|l| l.trim())
@@ -92,13 +99,16 @@ pub fn scan_fragments(content: String) -> Vec<Fragment> {
         .filter_map(|l| l.split_once("id="))
         .map(|c| c.1)
         .map(|c| c.replace('}', ""))
-        .map(|id| Fragment { id: id.to_string() })
+        .map(|id| Fragment {
+            id: id.to_string(),
+            source: source.clone(),
+        })
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::complete::{scan_fragments, Fragment};
+    use crate::parser::fragemnt::{scan_fragments, Fragment};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -113,12 +123,42 @@ mod tests {
 </ol>
 ";
 
-        let out = scan_fragments(conent.to_string());
+        let out = scan_fragments(conent.to_string(), String::new());
         assert_eq!(
             out,
             vec![Fragment {
-                id: "item".to_string()
+                id: "item".to_string(),
+                source: String::new()
             }]
         )
+    }
+}
+
+pub fn completion(
+    fragment_map: &DashMap<String, Fragment>,
+    line: String,
+    char_pos: usize,
+) -> Vec<CompletionItem> {
+    let last_words: &str = &line[0..char_pos];
+    if last_words.contains("{#include") {
+        let optional_close = get_optional_clonse_statement(line);
+        return fragment_map
+            .iter()
+            .map(|r| {
+                CompletionItem::new_simple(
+                    r.key().to_string() + optional_close,
+                    "Fragment from project".to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+    }
+
+    vec![]
+}
+
+fn get_optional_clonse_statement(line: String) -> &'static str {
+    match line.contains("/}") {
+        true => "",
+        false => " /}",
     }
 }

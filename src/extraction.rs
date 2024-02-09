@@ -306,7 +306,7 @@ fn get_tree(content: &str, language: Language) -> Result<Tree, TreesitterError> 
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::document::{get_element_node, ExtractionKind};
+    use crate::extraction::{get_element_node, ExtractionKind};
 
     use super::{check_extract, get_id_of_node, get_node_at_point, get_tree, range_includes_point};
     use pretty_assertions::assert_eq;

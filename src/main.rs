@@ -1,9 +1,10 @@
-mod parser;
+mod extraction;
 mod file_utils;
+mod parser;
 
 use dashmap::DashMap;
-use parser::fragemnt::{Fragment, self};
-use parser::document::ExtractionKind;
+use extraction::ExtractionKind;
+use parser::fragemnt::Fragment;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -96,6 +97,10 @@ impl LanguageServer for Backend {
                         ..CodeActionOptions::default()
                     },
                 )),
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec![" ".to_string()]),
+                    ..CompletionOptions::default()
+                }),
                 ..ServerCapabilities::default()
             },
             server_info: None,
@@ -103,7 +108,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let fragments = fragemnt::scan_templates();
+        let fragments = parser::fragemnt::scan_templates();
         for fragemnt in fragments {
             self.fragment_map.insert(fragemnt.id.clone(), fragemnt);
         }
@@ -131,6 +136,26 @@ impl LanguageServer for Backend {
             language_id: "".to_owned(),
         })
         .await
+    }
+
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let params = params.text_document_position;
+        let uri = params.text_document.uri;
+        let position = params.position;
+        let Some(document) = self.get_document(&uri).await else {
+            eprintln!("Document is not opened.");
+            return Ok(None);
+        };
+        let Some(line) = document.get_line(position.line.try_into().unwrap_or_default()) else {
+            eprintln!("Unable to read the line referecned");
+            return Ok(None);
+        };
+        let mut out = vec![];
+        out.extend(parser::fragemnt::completion(
+            &self.fragment_map,
+            line.to_string(), position.character as usize
+        ));
+        Ok(Some(CompletionResponse::Array(out)))
     }
 
     async fn goto_definition(
@@ -181,7 +206,7 @@ impl LanguageServer for Backend {
             Value::Number(point.column.into()),
         ]);
         let extract_opions: Vec<CodeActionOrCommand> =
-            parser::document::check_extract(&document.to_string(), point)
+            extraction::check_extract(&document.to_string(), point)
                 .iter()
                 .map(|kind| match kind {
                     ExtractionKind::AddFragement => CodeActionOrCommand::Command(Command {
@@ -218,7 +243,7 @@ impl LanguageServer for Backend {
         };
         let changes = match params.command.parse::<ExtractionKind>() {
             Ok(ExtractionKind::AddFragement) => {
-                match parser::document::add_fragment(url, point, &document.to_string()) {
+                match extraction::add_fragment(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
                         eprintln!("There was an error while running action AddFragement, {e:?}");
@@ -227,7 +252,7 @@ impl LanguageServer for Backend {
                 }
             }
             Ok(ExtractionKind::ExtractAsFile) => {
-                match parser::document::extract_as_file(url, point, &document.to_string()) {
+                match extraction::extract_as_file(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
                         eprintln!("There was an error while running action AddFragement, {e:?}");
@@ -236,7 +261,7 @@ impl LanguageServer for Backend {
                 }
             }
             Ok(ExtractionKind::ExtractAsFragment) => {
-                match parser::document::extract_as_fragment(url, point, &document.to_string()) {
+                match extraction::extract_as_fragment(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
                         eprintln!("There was an error while running action AddFragement, {e:?}");
