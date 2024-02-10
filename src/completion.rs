@@ -1,5 +1,35 @@
 use tower_lsp::lsp_types::{CompletionItem, InsertTextFormat};
 
+struct Completable<'a> {
+    label: &'a str,
+    detail: &'a str,
+}
+
+impl From<&Completable<'_>> for CompletionItem {
+    fn from(value: &Completable) -> Self {
+        CompletionItem {
+            label: value.label.to_string(),
+            label_details: None,
+            kind: None,
+            detail: Some(value.detail.to_string()),
+            documentation: None,
+            deprecated: None,
+            preselect: None,
+            sort_text: None,
+            filter_text: None,
+            insert_text: None,
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            insert_text_mode: None,
+            text_edit: None,
+            additional_text_edits: None,
+            command: None,
+            commit_characters: None,
+            data: None,
+            tags: None,
+        }
+    }
+}
+
 pub enum Keyword {
     Comment,
     Variable,
@@ -22,10 +52,16 @@ pub enum Keyword {
 #[macro_export]
 macro_rules! keyword {
     ($x:expr) => {
-        ($x, $x.complete())
+        (
+            Completable {
+                label: $x.complete(),
+                detail: $x.detail(),
+            },
+            $x.complete(),
+        )
     };
 }
-const KEYWODS: [(Keyword, &str); 17] = [
+const KEYWODS: [(Completable, &str); 17] = [
     keyword!(Keyword::Comment),
     keyword!(Keyword::Variable),
     keyword!(Keyword::DoubleVariable),
@@ -56,9 +92,7 @@ impl Keyword {
             Keyword::Let => "{#let key=value}\n$0\n{/let}",
             Keyword::If => "{#if condition}\n$0\n{/if}",
             Keyword::Else => "{#else}$0",
-            Keyword::When => {
-                "{#when $1}\n$0\n{/when}"
-            }
+            Keyword::When => "{#when $1}\n$0\n{/when}",
             Keyword::Is => "{#is $1}$0",
             Keyword::IsIn => "{#is in $1}$0",
             Keyword::Switch => "{#switch $1}\n$0\n{/switch}",
@@ -73,28 +107,53 @@ ${0:<h1>Fragment works</h1>}
             Keyword::Cached => "{#cached}$0{/cached}",
         }
     }
+    pub const fn detail(&self) -> &'static str {
+        match self {
+            Keyword::Comment => "The content of a comment is completely ignored when rendering the output.",
+            Keyword::Variable => "Render value.",
+            Keyword::DoubleVariable => "Render value.",
+            Keyword::ForLoop => "Go throw array",
+            Keyword::Each => "Go throw list. The value will be assigned to \"it\"",
+            Keyword::Let => "Defind a variable in scope",
+            Keyword::If => "",
+            Keyword::Else => "",
+            Keyword::When => "",
+            Keyword::Is => "",
+            Keyword::IsIn => "",
+            Keyword::Switch => "",
+            Keyword::Case => "",
+            Keyword::With => "",
+            Keyword::Include => "",
+            Keyword::Fragment => "",
+            Keyword::Cached => "",
+        }
+    }
 }
 
 pub fn completion(line: String, char_pos: usize) -> Vec<CompletionItem> {
-    let mut chars: &str = "";
-    match line.len() - 1 {
+    let line_len = line.trim_end().len() - 1;
+    let chars: &str = match line_len {
         0 => return vec![],
         1 => &line[char_pos - 1..char_pos],
         2 => &line[char_pos - 2..char_pos],
         3 | _ => &line[char_pos - 3..char_pos],
-    };
-    chars = chars.trim();
-
-    dbg!(chars);
+    }
+    .trim();
 
     KEYWODS
         .iter()
         .filter(|(_, v)| v.contains(chars))
-        .map(|(_, v)| CompletionItem {
-            label: v.to_string(),
-            detail: Some("Common quarkus completion item".to_string()),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..CompletionItem::default()
-        })
+        .map(|(c, _)| c.into())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::completion;
+
+    #[test]
+    fn completion_crash() {
+        let line = "{\r\n".to_string();
+        completion(line, 1);
+    }
 }

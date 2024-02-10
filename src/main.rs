@@ -1,7 +1,7 @@
+pub mod completion;
 mod extraction;
 mod file_utils;
 mod parser;
-pub mod completion;
 
 use dashmap::DashMap;
 use extraction::ExtractionKind;
@@ -99,7 +99,9 @@ impl LanguageServer for Backend {
                     },
                 )),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![" ".to_string(), "{".to_string(), "#".to_string()]),
+                    trigger_characters: Some(
+                        vec![' ', '{', '#', '!'].iter().map(|i| i.to_string()).collect(),
+                    ),
                     ..CompletionOptions::default()
                 }),
                 ..ServerCapabilities::default()
