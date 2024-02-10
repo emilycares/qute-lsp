@@ -3,6 +3,8 @@ mod extraction;
 mod file_utils;
 mod parser;
 
+use std::path::{PathBuf, Path};
+
 use dashmap::DashMap;
 use extraction::ExtractionKind;
 use parser::fragemnt::Fragment;
@@ -100,7 +102,10 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(
-                        vec![' ', '{', '#', '!'].iter().map(|i| i.to_string()).collect(),
+                        vec![' ', '{', '#', '!']
+                            .iter()
+                            .map(|i| i.to_string())
+                            .collect(),
                     ),
                     ..CompletionOptions::default()
                 }),
@@ -302,7 +307,10 @@ fn reverence_to_gotodefiniton(
     reference: &str,
     templates_folder: &str,
 ) -> Option<GotoDefinitionResponse> {
-    let path = template_reverence_to_path(reference, templates_folder);
+    let Some(path) = template_reverence_to_path(reference, templates_folder) else {
+        eprintln!("Unable to get canonicalized path");
+        return None;
+    };
     let Ok(uri) = Url::from_file_path(path) else {
         eprintln!("Unable to get url from file path");
         return None;
@@ -317,6 +325,7 @@ pub const fn get_templates_folder() -> &'static str {
     "./src/main/resources/templates/"
 }
 
-fn template_reverence_to_path(reverence: &str, templates_folder: &str) -> String {
-    format!("{}{}.html", templates_folder, reverence)
+fn template_reverence_to_path<'a>(reverence: &'a str, templates_folder: &'a str) -> Option<PathBuf> {
+    std::fs::canonicalize::<PathBuf>(format!("{}{}.html", templates_folder, reverence).into())
+        .ok()
 }
