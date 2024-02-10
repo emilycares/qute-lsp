@@ -3,7 +3,7 @@ mod extraction;
 mod file_utils;
 mod parser;
 
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 
 use dashmap::DashMap;
 use extraction::ExtractionKind;
@@ -102,10 +102,7 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(
-                        vec![' ', '{', '#', '!']
-                            .iter()
-                            .map(|i| i.to_string())
-                            .collect(),
+                        [' ', '{', '#', '!'].iter().map(|i| i.to_string()).collect(),
                     ),
                     ..CompletionOptions::default()
                 }),
@@ -192,11 +189,11 @@ impl LanguageServer for Backend {
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
                 QuteInclude::Basic(reference) => {
-                    return Ok(reverence_to_gotodefiniton(&reference, &template_folder));
+                    return Ok(reverence_to_gotodefiniton(&reference, template_folder));
                 }
                 QuteInclude::Fragment(fragment) => {
                     let reference = fragment.template;
-                    return Ok(reverence_to_gotodefiniton(&reference, &template_folder));
+                    return Ok(reverence_to_gotodefiniton(&reference, template_folder));
                 }
             }
         }
@@ -218,11 +215,11 @@ impl LanguageServer for Backend {
             Value::Number(point.row.into()),
             Value::Number(point.column.into()),
         ]);
-        let extract_opions: Vec<CodeActionOrCommand> =
+        let extract_options: Vec<CodeActionOrCommand> =
             extraction::check_extract(&document.to_string(), point)
                 .iter()
                 .map(|kind| match kind {
-                    ExtractionKind::AddFragement => CodeActionOrCommand::Command(Command {
+                    ExtractionKind::AddFragment => CodeActionOrCommand::Command(Command {
                         title: "Add fragment frame".to_string(),
                         command: kind.to_string(),
                         arguments: arguments.clone(),
@@ -240,8 +237,8 @@ impl LanguageServer for Backend {
                 })
                 .collect();
 
-        if !extract_opions.is_empty() {
-            return Ok(Some(extract_opions));
+        if !extract_options.is_empty() {
+            return Ok(Some(extract_options));
         }
         Ok(None)
     }
@@ -255,11 +252,11 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let changes = match params.command.parse::<ExtractionKind>() {
-            Ok(ExtractionKind::AddFragement) => {
+            Ok(ExtractionKind::AddFragment) => {
                 match extraction::add_fragment(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
-                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        eprintln!("There was an error while running action AddFragment, {e:?}");
                         None
                     }
                 }
@@ -268,7 +265,7 @@ impl LanguageServer for Backend {
                 match extraction::extract_as_file(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
-                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        eprintln!("There was an error while running action AddFragment, {e:?}");
                         None
                     }
                 }
@@ -277,7 +274,7 @@ impl LanguageServer for Backend {
                 match extraction::extract_as_fragment(url, point, &document.to_string()) {
                     Ok(changes) => Some(changes),
                     Err(e) => {
-                        eprintln!("There was an error while running action AddFragement, {e:?}");
+                        eprintln!("There was an error while running action AddFragment, {e:?}");
                         None
                     }
                 }
@@ -325,7 +322,9 @@ pub const fn get_templates_folder() -> &'static str {
     "./src/main/resources/templates/"
 }
 
-fn template_reverence_to_path<'a>(reverence: &'a str, templates_folder: &'a str) -> Option<PathBuf> {
-    std::fs::canonicalize::<PathBuf>(format!("{}{}.html", templates_folder, reverence).into())
-        .ok()
+fn template_reverence_to_path<'a>(
+    reverence: &'a str,
+    templates_folder: &'a str,
+) -> Option<PathBuf> {
+    std::fs::canonicalize::<PathBuf>(format!("{}{}.html", templates_folder, reverence).into()).ok()
 }

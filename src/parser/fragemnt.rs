@@ -33,7 +33,7 @@ pub fn scan_templates() -> Vec<Fragment> {
                 None
             })
             .flat_map(|(path, fragments)| {
-                let prefix = get_fragmet_prefix(path) + "$";
+                let prefix = get_fragment_prefix(path) + "$";
                 return fragments
                     .iter()
                     .map(|fragment| Fragment {
@@ -49,7 +49,7 @@ pub fn scan_templates() -> Vec<Fragment> {
 }
 
 /// folder/file$frag
-fn get_fragmet_prefix(p: PathBuf) -> String {
+fn get_fragment_prefix(p: PathBuf) -> String {
     let mut p = p.clone();
     let mut out = vec![];
     if let Some(filename) = get_name(&p) {
@@ -77,7 +77,7 @@ fn get_fragmet_prefix(p: PathBuf) -> String {
     out.into_iter().rev().collect()
 }
 
-fn get_name(p: &PathBuf) -> Option<String> {
+fn get_name(p: &Path) -> Option<String> {
     if let Some(filename) = p.file_name() {
         if let Some(filename) = filename.to_str() {
             if let Some(ext) = p.extension() {
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn scan_fragments_basic() {
-        let conent = "<h1>Items</h1>
+        let content = "<h1>Items</h1>
 <ol>
     {#for item in items}
     {#fragment id=item}   
@@ -123,7 +123,7 @@ mod tests {
 </ol>
 ";
 
-        let out = scan_fragments(conent.to_string(), String::new());
+        let out = scan_fragments(content.to_string(), String::new());
         assert_eq!(
             out,
             vec![Fragment {
