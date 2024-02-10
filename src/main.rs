@@ -99,7 +99,7 @@ impl LanguageServer for Backend {
                     },
                 )),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![" ".to_string()]),
+                    trigger_characters: Some(vec![" ".to_string(), "{".to_string(), "#".to_string()]),
                     ..CompletionOptions::default()
                 }),
                 ..ServerCapabilities::default()
@@ -152,6 +152,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let mut out = vec![];
+        out.extend(completion::completion(
+            line.to_string(),
+            position.character as usize,
+        ));
         out.extend(parser::fragemnt::completion(
             &self.fragment_map,
             line.to_string(),
