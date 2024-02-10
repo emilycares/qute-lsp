@@ -1,6 +1,7 @@
 mod extraction;
 mod file_utils;
 mod parser;
+pub mod completion;
 
 use dashmap::DashMap;
 use extraction::ExtractionKind;
@@ -153,7 +154,8 @@ impl LanguageServer for Backend {
         let mut out = vec![];
         out.extend(parser::fragemnt::completion(
             &self.fragment_map,
-            line.to_string(), position.character as usize
+            line.to_string(),
+            position.character as usize,
         ));
         Ok(Some(CompletionResponse::Array(out)))
     }
