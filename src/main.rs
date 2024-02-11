@@ -122,6 +122,7 @@ impl LanguageServer for Backend {
         }
         let routes = parser::route::scan_routes();
         for route in routes {
+            eprintln!("{:?}, {}", &route.method,  &route.path);
             self.route_map.insert(route.path.clone(), route);
         }
     }

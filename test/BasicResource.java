@@ -9,9 +9,11 @@ import jakarta.ws.rs.core.MediaType;
 import io.quarkus.qute.TemplateInstance;
 import io.quarkus.qute.Template;
 
-@GET
-@Produces(MediaType.TEXT_PLAIN)
+@Slf4j
 @Path("/hello")
+@Produces(MediaType.TEXT_PLAIN)
+@ApplicationScoped
+@WithSession
 public class BasicResource extends asd implements sdf {
 
     @Inject

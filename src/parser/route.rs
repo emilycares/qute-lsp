@@ -139,7 +139,9 @@ fn analyse_class<'a, 'b>(
     let mut out = vec![];
     cursor.goto_first_child();
     // analyse annotations at class level
-    let base_route = analyse_modifiers(content, cursor);
+    let Some(base_route) = analyse_modifiers(content, cursor) else {
+        return vec![];
+    };
     cursor.goto_parent();
     cursor.goto_next_sibling();
     cursor.goto_next_sibling();
@@ -168,7 +170,9 @@ fn analyse_fields<'a, 'b>(
 
     match cursor.node().kind() {
         "method_declaration" => {
-            out.push(analyse_method(&base_route, file_path, content, cursor));
+            if let Some(r) = analyse_method(&base_route, file_path, content, cursor) {
+                out.push(r);
+            }
         }
         "field_declaration" => (),
         _ => (),
@@ -185,11 +189,12 @@ fn analyse_method<'a, 'b>(
     file_path: &str,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
-) -> Route {
+) -> Option<Route> {
     cursor.goto_first_child();
-    let mut route = base_route
-        .clone()
-        .append_to_base(analyse_modifiers(content, cursor));
+    let Some(r) = analyse_modifiers(content, cursor) else {
+        return None;
+    };
+    let mut route = base_route.clone().append_to_base(r);
     cursor.goto_parent();
     cursor.goto_next_sibling();
     cursor.goto_next_sibling();
@@ -208,7 +213,7 @@ fn analyse_method<'a, 'b>(
     analyse_method_parameters(&mut route, content, cursor);
     cursor.goto_parent();
 
-    return route;
+    return Some(route);
 }
 
 fn analyse_method_parameters<'a, 'b>(
@@ -263,8 +268,6 @@ fn analyse_method_parameters<'a, 'b>(
                     c.java_type = java_type.clone();
                 };
             }
-            dbg!(cursor.node().kind());
-            dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
             cursor.goto_parent();
         }
     }
@@ -272,23 +275,29 @@ fn analyse_method_parameters<'a, 'b>(
     cursor.goto_parent();
 }
 
-fn analyse_modifiers<'a, 'b>(content: &'a str, cursor: &mut tree_sitter::TreeCursor<'a>) -> Route {
+fn analyse_modifiers<'a, 'b>(
+    content: &'a str,
+    cursor: &mut tree_sitter::TreeCursor<'a>,
+) -> Option<Route> {
     if cursor.node().kind() != "modifiers" {
-        return Route::default();
+        return None;
     }
     cursor.goto_first_child();
     let mut out = Route::default();
 
-    analyse_modifier(&mut out, content, cursor);
-
-    out
+    if analyse_modifier(&mut out, content, cursor) {
+        return Some(out);
+    }
+    None
 }
 
 fn analyse_modifier<'a, 'b>(
     route: &mut Route,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
-) {
+) -> bool {
+    //dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
+    let mut changed = false;
     match cursor.node().kind() {
         "annotation" => {
             cursor.goto_first_child();
@@ -303,6 +312,7 @@ fn analyse_modifier<'a, 'b>(
                         cursor.goto_next_sibling();
                         if let Ok(path) = cursor.node().utf8_text(content.as_bytes()) {
                             route.path += path;
+                            changed = true;
                             route.parameters.extend(initialise_paramters(path))
                         }
                         cursor.goto_parent();
@@ -318,6 +328,7 @@ fn analyse_modifier<'a, 'b>(
                         if let Ok(produces) = cursor.node().utf8_text(content.as_bytes()) {
                             if let Some(media_type) = parse_jakarta_media_type(produces) {
                                 route.produces_type = media_type;
+                                changed = true;
                             }
                         }
                         cursor.goto_parent();
@@ -336,6 +347,7 @@ fn analyse_modifier<'a, 'b>(
                     parse_jakarta_http_method_annotation_name(annotation_name)
                 {
                     route.method = jakarta_method;
+                    changed = true;
                 }
             }
             cursor.goto_parent();
@@ -344,8 +356,13 @@ fn analyse_modifier<'a, 'b>(
     }
 
     if cursor.goto_next_sibling() {
-        analyse_modifier(route, content, cursor);
+        let next = analyse_modifier(route, content, cursor);
+        if next {
+            changed = true;
+        }
     }
+
+    changed
 }
 
 fn initialise_paramters<'a, 'b>(path: &'a str) -> Vec<Parameter> {
