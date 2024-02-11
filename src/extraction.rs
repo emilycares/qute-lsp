@@ -199,7 +199,7 @@ fn get_url_with_id(url: String, id: &str) -> Option<Url> {
     Some(path)
 }
 
-fn to_lsp_position(point: Point) -> tower_lsp::lsp_types::Position {
+pub fn to_lsp_position(point: Point) -> tower_lsp::lsp_types::Position {
     tower_lsp::lsp_types::Position::new(
         point.row.try_into().unwrap_or_default(),
         point.column.try_into().unwrap_or_default(),

@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use dashmap::DashMap;
 use extraction::ExtractionKind;
 use parser::fragemnt::Fragment;
+use parser::route::Route;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -26,6 +27,7 @@ async fn main() {
         client,
         document_map: DashMap::new(),
         fragment_map: DashMap::new(),
+        route_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
@@ -35,6 +37,7 @@ struct Backend {
     client: Client,
     document_map: DashMap<String, Rope>,
     fragment_map: DashMap<String, Fragment>,
+    route_map: DashMap<String, Route>,
 }
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
@@ -116,6 +119,10 @@ impl LanguageServer for Backend {
         let fragments = parser::fragemnt::scan_templates();
         for fragemnt in fragments {
             self.fragment_map.insert(fragemnt.id.clone(), fragemnt);
+        }
+        let routes = parser::route::scan_routes();
+        for route in routes {
+            self.route_map.insert(route.path.clone(), route);
         }
     }
 

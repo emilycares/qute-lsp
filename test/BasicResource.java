@@ -9,8 +9,10 @@ import jakarta.ws.rs.core.MediaType;
 import io.quarkus.qute.TemplateInstance;
 import io.quarkus.qute.Template;
 
+@GET
+@Produces(MediaType.TEXT_PLAIN)
 @Path("/hello")
-public class BasicResource {
+public class BasicResource extends asd implements sdf {
 
     @Inject
     Template hello;
@@ -19,5 +21,18 @@ public class BasicResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance hello() {
             return hello.data("name", "micmine");
+    }
+
+    @GET
+    @Produces(MediaType.TEXT_HTML)
+    @Path("/customer/{name}")
+    public TemplateInstance customer(@PathParam("name") String name) {
+            return hello.data("name", name);
+    }
+
+    @PUT
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/customer/{name}/{sufix}")
+    public TemplateInstance customer_other(@PathParam("name") String name, @PathParam("sufix") int name) {
     }
 }
