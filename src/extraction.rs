@@ -13,7 +13,7 @@ pub enum TreesitterError {
 }
 #[derive(Debug, PartialEq)]
 pub enum ExtractionKind {
-    AddFragement,
+    AddFragment,
     ExtractAsFile,
     ExtractAsFragment,
 }
@@ -21,7 +21,7 @@ pub enum ExtractionKind {
 impl ToString for ExtractionKind {
     fn to_string(&self) -> String {
         match self {
-            ExtractionKind::AddFragement => "AddFragement",
+            ExtractionKind::AddFragment => "AddFragment",
             ExtractionKind::ExtractAsFile => "ExtractAsFile",
             ExtractionKind::ExtractAsFragment => "ExtractAsFragment",
         }
@@ -34,7 +34,7 @@ impl FromStr for ExtractionKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "AddFragement" => Ok(Self::AddFragement),
+            "AddFragment" => Ok(Self::AddFragment),
             "ExtractAsFile" => Ok(Self::ExtractAsFile),
             "ExtractAsFragment" => Ok(Self::ExtractAsFragment),
             _ => Err(()),
@@ -49,7 +49,7 @@ pub fn check_extract(content: &str, point: Point) -> Vec<ExtractionKind> {
         Ok(tree) => match get_node_at_point(&tree, point) {
             Ok(node) => match get_element_node(node) {
                 Ok(node) => {
-                    out.push(ExtractionKind::AddFragement);
+                    out.push(ExtractionKind::AddFragment);
                     match get_id_of_node(language, node, content) {
                         Ok(_) => {
                             out.push(ExtractionKind::ExtractAsFile);
@@ -306,7 +306,7 @@ fn get_tree(content: &str, language: Language) -> Result<Tree, TreesitterError> 
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::document::{get_element_node, ExtractionKind};
+    use crate::extraction::{get_element_node, ExtractionKind};
 
     use super::{check_extract, get_id_of_node, get_node_at_point, get_tree, range_includes_point};
     use pretty_assertions::assert_eq;
@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                ExtractionKind::AddFragement,
+                ExtractionKind::AddFragment,
                 ExtractionKind::ExtractAsFile,
                 ExtractionKind::ExtractAsFragment
             ]
@@ -342,7 +342,7 @@ mod tests {
     fn could_extract_no_id() {
         let point = tree_sitter::Point { row: 8, column: 2 };
         let out = check_extract(DOCUMENT, point);
-        assert_eq!(out, vec![ExtractionKind::AddFragement]);
+        assert_eq!(out, vec![ExtractionKind::AddFragment]);
     }
     #[test]
     fn get_id_of_node_basic() {
