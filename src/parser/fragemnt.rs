@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use tower_lsp::lsp_types::CompletionItem;
 
-use crate::{file_utils::find_files, get_templates_folder};
+use crate::{file_utils::find_files, TEMPLATE_FOLDER};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -19,8 +19,7 @@ pub struct Document {
     fragments: Vec<Fragment>,
 }
 pub fn scan_templates() -> Vec<Fragment> {
-    let template_folder = get_templates_folder();
-    let path = Path::new(&template_folder);
+    let path = Path::new(TEMPLATE_FOLDER);
     if let Ok(files) = find_files(path) {
         return files
             .into_iter()

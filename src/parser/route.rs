@@ -1,7 +1,11 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
-use tower_lsp::lsp_types::{Location, Url};
-use tree_sitter::Parser;
+use dashmap::DashMap;
+use tower_lsp::lsp_types::{CompletionItem, Location, Url};
+use tree_sitter::{Node, Parser};
 
 use crate::{extraction::to_lsp_position, file_utils::find_files};
 
@@ -19,7 +23,11 @@ pub struct Route {
 impl Route {
     pub fn append_to_base(mut self, other: Self) -> Self {
         self.method = other.method;
-        self.path += &other.path;
+        if self.path.ends_with('/') {
+            self.path = self.path[0..self.path.len() - 1].to_string() + other.path.as_str();
+        } else {
+            self.path += &other.path;
+        }
         self.parameters.extend(other.parameters);
         self.produces_type = other.produces_type;
         self
@@ -95,6 +103,95 @@ pub enum ParameterType {
     Unknown(String),
 }
 
+pub fn completion(
+    route_map: &DashMap<String, Route>,
+    line: String,
+    char_pos: usize,
+) -> Vec<CompletionItem> {
+    let content = &line;
+    let mut parser = Parser::new();
+    let language = pepegsitter::java::language();
+    //let language = tree_sitter_html::language();
+    parser
+        .set_language(language)
+        .expect("Error loading html grammar");
+    let Some(tree) = parser.parse(&content, None) else {
+        return vec![];
+    };
+    let mut cursor = tree.walk();
+    cursor.goto_first_child_for_point(tree_sitter::Point {
+        row: 0,
+        column: char_pos,
+    });
+    let string_literal_node = cursor.node();
+    if string_literal_node.kind() != "string_literal" {
+        dbg!("not string_literal");
+        dbg!(string_literal_node.kind());
+        dbg!(string_literal_node.utf8_text(content.as_bytes()));
+        return vec![];
+    }
+    let param_name = get_param_name(string_literal_node, content);
+    if !can_complet_path_for_param_name(param_name) {
+        dbg!("not can_complet_path_for_param_name");
+        return vec![];
+    }
+    return route_map
+        .iter()
+        .map(|r| {
+            CompletionItem::new_simple(
+                r.key().to_string(), /* + optional_close*/
+                "A quarkus route".to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+}
+
+fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
+    let Some(param_name) = param_name else {
+        return false;
+    };
+    match param_name.as_str() {
+        "hx-get" => true,
+        _ => false,
+    }
+}
+
+fn get_param_name<'a, 'b>(node: Node, content: &'a str) -> Option<String> {
+    let Some(node) = node.prev_sibling() else {
+        return None;
+    };
+    let Some(node) = node.prev_sibling() else {
+        return None;
+    };
+    let mut tag_name = vec![];
+    if let Ok(n) = node.utf8_text(content.as_bytes()) {
+        tag_name.push(n);
+    }
+    let Some(node) = node.prev_sibling() else {
+        return None;
+    };
+    if let Ok(n) = node.utf8_text(content.as_bytes()) {
+        tag_name.push(n);
+    }
+    let Some(node) = node.prev_sibling() else {
+        return None;
+    };
+    if let Ok(n) = node.utf8_text(content.as_bytes()) {
+        tag_name.push(n);
+    }
+    let s = tag_name.clone().into_iter().rev().collect::<String>();
+    if s.contains(' ') {
+        let Some((_, b)) = s.rsplit_once(' ') else {
+            return None;
+        };
+        let b = b.to_string();
+
+        return Some(b);
+    } else {
+        return Some(s.to_string());
+    }
+}
+
 pub fn scan_routes() -> Vec<Route> {
     let template_folder = "./src/main/java/";
     let path = Path::new(&template_folder);
@@ -104,7 +201,11 @@ pub fn scan_routes() -> Vec<Route> {
             .flat_map(|p| {
                 if let Ok(con) = fs::read_to_string(p.clone()) {
                     if let Some(filename) = p.to_str() {
-                        return Some(analyse_file(filename, &con));
+                        if let Some(file_path) =
+                            std::fs::canonicalize::<PathBuf>(filename.into()).ok()
+                        {
+                            return Some(analyse_file(file_path, &con));
+                        }
                     }
                 }
                 None
@@ -116,14 +217,16 @@ pub fn scan_routes() -> Vec<Route> {
     vec![]
 }
 
-pub fn analyse_file(file_path: &str, content: &str) -> Vec<Route> {
+pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
     let mut out = vec![];
     let mut parser = Parser::new();
     let language = pepegsitter::java::language();
     parser
         .set_language(language)
-        .expect("Error loading markdown grammar");
-    let tree = parser.parse(&content, None).unwrap();
+        .expect("Error loading java grammar");
+    let Some(tree) = parser.parse(&content, None) else {
+        return vec![];
+    };
     let mut cursor = tree.walk();
     cursor.goto_first_child();
     skip_head(&mut cursor);
@@ -132,7 +235,7 @@ pub fn analyse_file(file_path: &str, content: &str) -> Vec<Route> {
 }
 
 fn analyse_class<'a, 'b>(
-    file_path: &str,
+    file_path: PathBuf,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
 ) -> Vec<Route> {
@@ -162,7 +265,7 @@ fn analyse_class<'a, 'b>(
 
 fn analyse_fields<'a, 'b>(
     base_route: Route,
-    file_path: &str,
+    file_path: PathBuf,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
 ) -> Vec<Route> {
@@ -170,7 +273,7 @@ fn analyse_fields<'a, 'b>(
 
     match cursor.node().kind() {
         "method_declaration" => {
-            if let Some(r) = analyse_method(&base_route, file_path, content, cursor) {
+            if let Some(r) = analyse_method(&base_route, file_path.clone(), content, cursor) {
                 out.push(r);
             }
         }
@@ -186,7 +289,7 @@ fn analyse_fields<'a, 'b>(
 
 fn analyse_method<'a, 'b>(
     base_route: &Route,
-    file_path: &str,
+    file_path: PathBuf,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
 ) -> Option<Route> {
@@ -437,13 +540,13 @@ fn skip_head(cursor: &mut tree_sitter::TreeCursor<'_>) {
     }
 }
 fn handel_classes<'a, 'b>(
-    file_path: &str,
+    file_path: PathBuf,
     content: &'a str,
     cursor: &mut tree_sitter::TreeCursor<'a>,
 ) -> Vec<Route> {
     let mut out = vec![];
     if cursor.node().kind() == "class_declaration" {
-        out.extend(analyse_class(file_path, content, cursor));
+        out.extend(analyse_class(file_path.clone().clone(), content, cursor));
         // when there is a sibling then also scann that class
         if cursor.goto_next_sibling() {
             out.extend(handel_classes(file_path, content, cursor));
@@ -457,12 +560,16 @@ mod tests {
     use crate::parser::route::{
         analyse_file, HttpMethod, MediaType, Parameter, ParameterType, Route,
     };
+    use dashmap::DashMap;
     use pretty_assertions::assert_eq;
+    use tower_lsp::lsp_types::CompletionItem;
+
+    use super::completion;
 
     #[test]
     fn analyse_file_test() {
         static FILE_CONTENT: &str = include_str!("../../test/BasicResource.java");
-        let out = analyse_file("", FILE_CONTENT);
+        let out = analyse_file("".into(), FILE_CONTENT);
         assert_eq!(
             out,
             vec![
@@ -501,5 +608,27 @@ mod tests {
                 },
             ]
         )
+    }
+
+    #[test]
+    fn completion_basic() {
+        let dm = DashMap::new();
+        dm.insert("/start".to_string(), Route::default());
+        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 21);
+        assert_eq!(
+            out,
+            vec![CompletionItem {
+                label: "/start".to_string(),
+                detail: Some("A quarkus route".to_string()),
+                ..CompletionItem::default()
+            }]
+        )
+    }
+    #[test]
+    fn completion_basic_not() {
+        let dm = DashMap::new();
+        dm.insert("".to_string(), Route::default());
+        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 63);
+        assert_eq!(out, vec![])
     }
 }
