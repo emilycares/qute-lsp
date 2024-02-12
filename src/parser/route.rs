@@ -19,6 +19,18 @@ pub struct Route {
     pub produces_type: MediaType,
 }
 
+impl ToString for Route {
+    fn to_string(&self) -> String {
+        let parameters: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
+        let mut params = String::new();
+        for param in parameters {
+            params.push_str("\n - ");
+            params.push_str(&param);
+        }
+        format!("{}: {}\n{}", self.method.to_string(), self.path, params)
+    }
+}
+
 impl Route {
     pub fn append_to_base(mut self, other: Self) -> Self {
         self.method = other.method;
@@ -42,6 +54,22 @@ impl Default for Route {
             parameters: vec![],
             produces_type: MediaType::TextPlain,
         }
+    }
+}
+
+impl ToString for HttpMethod {
+    fn to_string(&self) -> String {
+        match self {
+            HttpMethod::Get => "GET",
+            HttpMethod::Head => "HEAD",
+            HttpMethod::Post => "POST",
+            HttpMethod::Put => "PUT",
+            HttpMethod::Delete => "DELETE",
+            HttpMethod::Options => "OPTIONS",
+            HttpMethod::Trace => "TRACE",
+            HttpMethod::Patch => "PATCH",
+        }
+        .to_string()
     }
 }
 
@@ -93,6 +121,11 @@ pub struct Parameter {
     pub name: String,
     pub java_type: ParameterType,
 }
+impl ToString for &Parameter {
+    fn to_string(&self) -> String {
+        format!("{} {}", self.java_type.to_string(), self.name)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParameterType {
@@ -102,6 +135,16 @@ pub enum ParameterType {
     Unknown(String),
 }
 
+impl ToString for ParameterType {
+    fn to_string(&self) -> String {
+        match self {
+            ParameterType::String => "String".to_string(),
+            ParameterType::Int => "int".to_string(),
+            ParameterType::Long => "long".to_string(),
+            ParameterType::Unknown(t) => t.to_string(),
+        }
+    }
+}
 
 pub fn scan_routes() -> Vec<Route> {
     let template_folder = "./src/main/java/";
@@ -258,6 +301,7 @@ fn analyse_method_parameters<'a, 'b>(
                                 if let Ok(parameter_name) =
                                     cursor.node().utf8_text(content.as_bytes())
                                 {
+                                    dbg!(&parameter_name);
                                     name = parameter_name;
                                 }
                                 cursor.goto_parent();
@@ -270,11 +314,20 @@ fn analyse_method_parameters<'a, 'b>(
                     cursor.goto_parent();
                 }
                 cursor.goto_parent();
+                cursor.goto_next_sibling();
             }
-            cursor.goto_next_sibling();
+            //dbg!(cursor.node().kind());
+            //dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
             if let Ok(ty) = cursor.node().utf8_text(content.as_bytes()) {
                 if let Some(ty) = parse_java_type_for_param(ty) {
+                    dbg!(&ty);
                     java_type = ty;
+                }
+            }
+            if name.is_empty() {
+                cursor.goto_next_sibling();
+                if let Ok(parameter_name) = cursor.node().utf8_text(content.as_bytes()) {
+                    name = parameter_name;
                 }
             }
             for c in &mut route.parameters {
@@ -473,7 +526,6 @@ mod tests {
     };
     use pretty_assertions::assert_eq;
 
-
     #[test]
     fn analyse_file_test() {
         static FILE_CONTENT: &str = include_str!("../../test/BasicResource.java");
@@ -514,8 +566,23 @@ mod tests {
                     ],
                     produces_type: MediaType::ApplicationJson,
                 },
+                Route {
+                    implementation: None,
+                    method: HttpMethod::Put,
+                    path: "/hello/customer/{name}/{sufix}".to_string(),
+                    parameters: vec![
+                        Parameter {
+                            name: "name".to_string(),
+                            java_type: ParameterType::String,
+                        },
+                        Parameter {
+                            name: "sufix".to_string(),
+                            java_type: ParameterType::Int,
+                        },
+                    ],
+                    produces_type: MediaType::ApplicationJson,
+                },
             ]
         )
     }
-
 }

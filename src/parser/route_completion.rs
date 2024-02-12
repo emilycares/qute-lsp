@@ -52,8 +52,6 @@ fn handle_muilty_line<'a, 'b>(route_map: &DashMap<String, Route>,line: &'a str, 
             column: char_pos + 8,
         });
     }
-    dbg!(cursor.node().kind());
-    dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
     let string_node = cursor.node();
     if string_node.kind() != "attribute_value" {
         cursor.reset(tree.root_node());
@@ -75,7 +73,7 @@ fn get_completion_items(string_node: Node<'_>, content: String, route_map: &Dash
         .map(|r| {
             CompletionItem::new_simple(
                 r.key().to_string(), /* + optional_close*/
-                "A quarkus route".to_string(),
+                r.value().to_string()
             )
         })
         .collect::<Vec<_>>());
@@ -127,7 +125,7 @@ mod tests {
             out,
             vec![CompletionItem {
                 label: "/start".to_string(),
-                detail: Some("A quarkus route".to_string()),
+                detail: Some("GET: \n".to_string()),
                 ..CompletionItem::default()
             }]
         )
@@ -148,7 +146,7 @@ mod tests {
             out,
             vec![CompletionItem {
                 label: "/start".to_string(),
-                detail: Some("A quarkus route".to_string()),
+                detail: Some("GET: \n".to_string()),
                 ..CompletionItem::default()
             }]
         )
