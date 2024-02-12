@@ -3,9 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dashmap::DashMap;
-use tower_lsp::lsp_types::{CompletionItem, Location, Url};
-use tree_sitter::{Node, Parser};
+use tower_lsp::lsp_types::{Location, Url};
+use tree_sitter::Parser;
 
 use crate::{extraction::to_lsp_position, file_utils::find_files};
 
@@ -91,8 +90,8 @@ pub enum HttpMethod {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
-    name: String,
-    java_type: ParameterType,
+    pub name: String,
+    pub java_type: ParameterType,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,94 +102,6 @@ pub enum ParameterType {
     Unknown(String),
 }
 
-pub fn completion(
-    route_map: &DashMap<String, Route>,
-    line: String,
-    char_pos: usize,
-) -> Vec<CompletionItem> {
-    let content = &line;
-    let mut parser = Parser::new();
-    let language = pepegsitter::java::language();
-    //let language = tree_sitter_html::language();
-    parser
-        .set_language(language)
-        .expect("Error loading html grammar");
-    let Some(tree) = parser.parse(&content, None) else {
-        return vec![];
-    };
-    let mut cursor = tree.walk();
-    cursor.goto_first_child_for_point(tree_sitter::Point {
-        row: 0,
-        column: char_pos,
-    });
-    let string_literal_node = cursor.node();
-    if string_literal_node.kind() != "string_literal" {
-        dbg!("not string_literal");
-        dbg!(string_literal_node.kind());
-        dbg!(string_literal_node.utf8_text(content.as_bytes()));
-        return vec![];
-    }
-    let param_name = get_param_name(string_literal_node, content);
-    if !can_complet_path_for_param_name(param_name) {
-        dbg!("not can_complet_path_for_param_name");
-        return vec![];
-    }
-    return route_map
-        .iter()
-        .map(|r| {
-            CompletionItem::new_simple(
-                r.key().to_string(), /* + optional_close*/
-                "A quarkus route".to_string(),
-            )
-        })
-        .collect::<Vec<_>>();
-}
-
-fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
-    let Some(param_name) = param_name else {
-        return false;
-    };
-    match param_name.as_str() {
-        "hx-get" => true,
-        _ => false,
-    }
-}
-
-fn get_param_name<'a, 'b>(node: Node, content: &'a str) -> Option<String> {
-    let Some(node) = node.prev_sibling() else {
-        return None;
-    };
-    let Some(node) = node.prev_sibling() else {
-        return None;
-    };
-    let mut tag_name = vec![];
-    if let Ok(n) = node.utf8_text(content.as_bytes()) {
-        tag_name.push(n);
-    }
-    let Some(node) = node.prev_sibling() else {
-        return None;
-    };
-    if let Ok(n) = node.utf8_text(content.as_bytes()) {
-        tag_name.push(n);
-    }
-    let Some(node) = node.prev_sibling() else {
-        return None;
-    };
-    if let Ok(n) = node.utf8_text(content.as_bytes()) {
-        tag_name.push(n);
-    }
-    let s = tag_name.clone().into_iter().rev().collect::<String>();
-    if s.contains(' ') {
-        let Some((_, b)) = s.rsplit_once(' ') else {
-            return None;
-        };
-        let b = b.to_string();
-
-        return Some(b);
-    } else {
-        return Some(s.to_string());
-    }
-}
 
 pub fn scan_routes() -> Vec<Route> {
     let template_folder = "./src/main/java/";
@@ -560,11 +471,8 @@ mod tests {
     use crate::parser::route::{
         analyse_file, HttpMethod, MediaType, Parameter, ParameterType, Route,
     };
-    use dashmap::DashMap;
     use pretty_assertions::assert_eq;
-    use tower_lsp::lsp_types::CompletionItem;
 
-    use super::completion;
 
     #[test]
     fn analyse_file_test() {
@@ -610,25 +518,4 @@ mod tests {
         )
     }
 
-    #[test]
-    fn completion_basic() {
-        let dm = DashMap::new();
-        dm.insert("/start".to_string(), Route::default());
-        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 21);
-        assert_eq!(
-            out,
-            vec![CompletionItem {
-                label: "/start".to_string(),
-                detail: Some("A quarkus route".to_string()),
-                ..CompletionItem::default()
-            }]
-        )
-    }
-    #[test]
-    fn completion_basic_not() {
-        let dm = DashMap::new();
-        dm.insert("".to_string(), Route::default());
-        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 63);
-        assert_eq!(out, vec![])
-    }
 }

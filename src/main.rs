@@ -163,7 +163,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let mut out = vec![];
-        let route_completion = parser::route::completion(
+        let route_completion = parser::route_completion::completion(
             &self.route_map,
             line.to_string(),
             position.character as usize,
