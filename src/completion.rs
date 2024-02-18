@@ -154,6 +154,18 @@ mod tests {
     #[test]
     fn completion_crash() {
         let line = "{\r\n".to_string();
-        completion(line, 1);
+        assert_eq!(completion(line, 1).len(), 0);
+
+        let line = "{#".to_string();
+        assert_eq!(completion(line, 2).len(), 14);
+
+        let line = "{#f".to_string();
+        assert_eq!(completion(line, 3).len(), 2);
+
+        let line = "{@if".to_string();
+        assert_eq!(completion(line, 4).len(), 0);
+
+        let line = "{@whe".to_string();
+        assert_eq!(completion(line, 4).len(), 0);
     }
 }

@@ -4,7 +4,7 @@ use std::{
 };
 
 use tower_lsp::lsp_types::{Location, Url};
-use tree_sitter::Parser;
+use tree_sitter::{Parser, TreeCursor};
 
 use crate::{extraction::to_lsp_position, file_utils::find_files};
 
@@ -42,6 +42,33 @@ impl Route {
         self.parameters.extend(other.parameters);
         self.produces_type = other.produces_type;
         self
+    }
+}
+
+pub trait CommentSkiper {
+    fn parent(&mut self) -> bool;
+    fn sibling(&mut self) -> bool;
+    fn first_child(&mut self) -> bool;
+}
+
+impl CommentSkiper for TreeCursor<'_> {
+    fn parent(&mut self) -> bool {
+        if self.goto_parent() {
+            return skip_comments(self);
+        }
+        false
+    }
+    fn sibling(&mut self) -> bool {
+        if self.goto_next_sibling() {
+            return skip_comments(self);
+        }
+        false
+    }
+    fn first_child(&mut self) -> bool {
+        if self.goto_first_child() {
+            return skip_comments(self);
+        }
+        false
     }
 }
 
@@ -182,7 +209,7 @@ pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
         return vec![];
     };
     let mut cursor = tree.walk();
-    cursor.goto_first_child();
+    cursor.first_child();
     skip_head(&mut cursor);
     out.extend(handel_classes(file_path, content, &mut cursor));
     out
@@ -191,29 +218,29 @@ pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
 fn analyse_class<'a, 'b>(
     file_path: PathBuf,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) -> Vec<Route> {
     let mut out = vec![];
-    cursor.goto_first_child();
+    cursor.first_child();
     // analyse annotations at class level
     let Some(base_route) = analyse_modifiers(content, cursor) else {
         return vec![];
     };
-    cursor.goto_parent();
-    cursor.goto_next_sibling();
-    cursor.goto_next_sibling();
-    cursor.goto_next_sibling();
+    cursor.parent();
+    cursor.sibling();
+    cursor.sibling();
+    cursor.sibling();
     if cursor.node().kind() == "superclass" {
-        cursor.goto_next_sibling();
+        cursor.sibling();
     }
     if cursor.node().kind() == "super_interfaces" {
-        cursor.goto_next_sibling();
+        cursor.sibling();
     }
-    cursor.goto_first_child();
+    cursor.first_child();
     out.extend(analyse_fields(base_route, file_path, content, cursor));
-    cursor.goto_parent();
+    cursor.parent();
 
-    cursor.goto_parent();
+    cursor.parent();
     out
 }
 
@@ -221,7 +248,7 @@ fn analyse_fields<'a, 'b>(
     base_route: Route,
     file_path: PathBuf,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) -> Vec<Route> {
     let mut out: Vec<Route> = vec![];
 
@@ -235,7 +262,7 @@ fn analyse_fields<'a, 'b>(
         _ => (),
     }
 
-    if cursor.goto_next_sibling() {
+    if cursor.sibling() {
         out.extend(analyse_fields(base_route, file_path, content, cursor));
     }
     out
@@ -245,16 +272,16 @@ fn analyse_method<'a, 'b>(
     base_route: &Route,
     file_path: PathBuf,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) -> Option<Route> {
-    cursor.goto_first_child();
+    cursor.first_child();
     let Some(r) = analyse_modifiers(content, cursor) else {
         return None;
     };
     let mut route = base_route.clone().append_to_base(r);
-    cursor.goto_parent();
-    cursor.goto_next_sibling();
-    cursor.goto_next_sibling();
+    cursor.parent();
+    cursor.sibling();
+    cursor.sibling();
     let method_position = cursor.node().start_position();
     route.implementation = match Url::from_file_path(file_path) {
         Ok(url) => Some(Location::new(
@@ -266,9 +293,9 @@ fn analyse_method<'a, 'b>(
         )),
         Err(_) => None,
     };
-    cursor.goto_next_sibling();
+    cursor.sibling();
     analyse_method_parameters(&mut route, content, cursor);
-    cursor.goto_parent();
+    cursor.parent();
 
     return Some(route);
 }
@@ -276,56 +303,54 @@ fn analyse_method<'a, 'b>(
 fn analyse_method_parameters<'a, 'b>(
     route: &mut Route,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) {
-    cursor.goto_first_child();
+    cursor.first_child();
 
-    while cursor.goto_next_sibling() {
+    while cursor.sibling() {
         let mut name: &str = "";
         let mut java_type = ParameterType::Unknown("".to_owned());
         if cursor.node().kind() == "formal_parameter" {
-            cursor.goto_first_child();
+            cursor.first_child();
             if cursor.node().kind() == "modifiers" {
-                cursor.goto_first_child();
+                cursor.first_child();
                 if cursor.node().kind() == "annotation" {
-                    cursor.goto_first_child();
-                    cursor.goto_next_sibling();
+                    cursor.first_child();
+                    cursor.sibling();
                     if let Ok(annotation_name) = cursor.node().utf8_text(content.as_bytes()) {
                         match annotation_name {
                             "PathParam" => {
-                                cursor.goto_next_sibling();
-                                cursor.goto_first_child();
-                                cursor.goto_next_sibling();
-                                cursor.goto_first_child();
-                                cursor.goto_next_sibling();
+                                cursor.sibling();
+                                cursor.first_child();
+                                cursor.sibling();
+                                cursor.first_child();
+                                cursor.sibling();
                                 if let Ok(parameter_name) =
                                     cursor.node().utf8_text(content.as_bytes())
                                 {
-                                    dbg!(&parameter_name);
                                     name = parameter_name;
                                 }
-                                cursor.goto_parent();
-                                cursor.goto_parent();
+                                cursor.parent();
+                                cursor.parent();
                             }
                             _ => (),
                         }
                     }
 
-                    cursor.goto_parent();
+                    cursor.parent();
                 }
-                cursor.goto_parent();
-                cursor.goto_next_sibling();
+                cursor.parent();
+                cursor.sibling();
             }
             //dbg!(cursor.node().kind());
             //dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
             if let Ok(ty) = cursor.node().utf8_text(content.as_bytes()) {
                 if let Some(ty) = parse_java_type_for_param(ty) {
-                    dbg!(&ty);
                     java_type = ty;
                 }
             }
             if name.is_empty() {
-                cursor.goto_next_sibling();
+                cursor.sibling();
                 if let Ok(parameter_name) = cursor.node().utf8_text(content.as_bytes()) {
                     name = parameter_name;
                 }
@@ -335,21 +360,18 @@ fn analyse_method_parameters<'a, 'b>(
                     c.java_type = java_type.clone();
                 };
             }
-            cursor.goto_parent();
+            cursor.parent();
         }
     }
 
-    cursor.goto_parent();
+    cursor.parent();
 }
 
-fn analyse_modifiers<'a, 'b>(
-    content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
-) -> Option<Route> {
+fn analyse_modifiers<'a, 'b>(content: &'a str, cursor: &mut TreeCursor<'a>) -> Option<Route> {
     if cursor.node().kind() != "modifiers" {
         return None;
     }
-    cursor.goto_first_child();
+    cursor.first_child();
     let mut out = Route::default();
 
     if analyse_modifier(&mut out, content, cursor) {
@@ -361,54 +383,54 @@ fn analyse_modifiers<'a, 'b>(
 fn analyse_modifier<'a, 'b>(
     route: &mut Route,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) -> bool {
     //dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
     let mut changed = false;
     match cursor.node().kind() {
         "annotation" => {
-            cursor.goto_first_child();
-            cursor.goto_next_sibling();
+            cursor.first_child();
+            cursor.sibling();
             if let Ok(name) = cursor.node().utf8_text(content.as_bytes()) {
                 match name {
                     "Path" => {
-                        cursor.goto_next_sibling();
-                        cursor.goto_first_child();
-                        cursor.goto_next_sibling();
-                        cursor.goto_first_child();
-                        cursor.goto_next_sibling();
+                        cursor.sibling();
+                        cursor.first_child();
+                        cursor.sibling();
+                        cursor.first_child();
+                        cursor.sibling();
                         if let Ok(path) = cursor.node().utf8_text(content.as_bytes()) {
                             route.path += path;
                             changed = true;
                             route.parameters.extend(initialise_paramters(path))
                         }
-                        cursor.goto_parent();
-                        cursor.goto_parent();
+                        cursor.parent();
+                        cursor.parent();
                     }
                     "Produces" => {
-                        cursor.goto_next_sibling();
-                        cursor.goto_first_child();
-                        cursor.goto_next_sibling();
-                        cursor.goto_first_child();
-                        cursor.goto_next_sibling();
-                        cursor.goto_next_sibling();
+                        cursor.sibling();
+                        cursor.first_child();
+                        cursor.sibling();
+                        cursor.first_child();
+                        cursor.sibling();
+                        cursor.sibling();
                         if let Ok(produces) = cursor.node().utf8_text(content.as_bytes()) {
                             if let Some(media_type) = parse_jakarta_media_type(produces) {
                                 route.produces_type = media_type;
                                 changed = true;
                             }
                         }
-                        cursor.goto_parent();
-                        cursor.goto_parent();
+                        cursor.parent();
+                        cursor.parent();
                     }
                     _ => (),
                 }
             }
-            cursor.goto_parent();
+            cursor.parent();
         }
         "marker_annotation" => {
-            cursor.goto_first_child();
-            cursor.goto_next_sibling();
+            cursor.first_child();
+            cursor.sibling();
             if let Ok(annotation_name) = cursor.node().utf8_text(content.as_bytes()) {
                 if let Some(jakarta_method) =
                     parse_jakarta_http_method_annotation_name(annotation_name)
@@ -417,12 +439,12 @@ fn analyse_modifier<'a, 'b>(
                     changed = true;
                 }
             }
-            cursor.goto_parent();
+            cursor.parent();
         }
         _ => (),
     }
 
-    if cursor.goto_next_sibling() {
+    if cursor.sibling() {
         let next = analyse_modifier(route, content, cursor);
         if next {
             changed = true;
@@ -430,6 +452,18 @@ fn analyse_modifier<'a, 'b>(
     }
 
     changed
+}
+
+fn skip_comments<'a>(cursor: &mut TreeCursor<'a>) -> bool {
+    match cursor.node().kind() {
+        "block_comment" | "line_comment" => {
+            if !cursor.goto_next_sibling() {
+                return false;
+            }
+            skip_comments(cursor)
+        }
+        _ => true,
+    }
 }
 
 fn initialise_paramters<'a, 'b>(path: &'a str) -> Vec<Parameter> {
@@ -496,23 +530,24 @@ fn parse_java_type_for_param(ty: &str) -> Option<ParameterType> {
     }
 }
 
-fn skip_head(cursor: &mut tree_sitter::TreeCursor<'_>) {
+fn skip_head(cursor: &mut TreeCursor<'_>) {
     if cursor.node().kind() == "package_declaration" || cursor.node().kind() == "import_declaration"
     {
-        cursor.goto_next_sibling();
+        cursor.sibling();
         skip_head(cursor);
     }
 }
 fn handel_classes<'a, 'b>(
     file_path: PathBuf,
     content: &'a str,
-    cursor: &mut tree_sitter::TreeCursor<'a>,
+    cursor: &mut TreeCursor<'a>,
 ) -> Vec<Route> {
     let mut out = vec![];
+    skip_comments(cursor);
     if cursor.node().kind() == "class_declaration" {
         out.extend(analyse_class(file_path.clone().clone(), content, cursor));
         // when there is a sibling then also scann that class
-        if cursor.goto_next_sibling() {
+        if cursor.sibling() {
             out.extend(handel_classes(file_path, content, cursor));
         }
     }
@@ -525,6 +560,16 @@ mod tests {
         analyse_file, HttpMethod, MediaType, Parameter, ParameterType, Route,
     };
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn commented_same() {
+        static FILE_CONTENT_NORMAL: &str = include_str!("../../test/BasicResource.java");
+        static FILE_CONTENT_COMMENTED: &str = include_str!("../../test/BasicResourceComments.java");
+        assert_eq!(
+            analyse_file("".into(), FILE_CONTENT_NORMAL),
+            analyse_file("".into(), FILE_CONTENT_COMMENTED)
+        );
+    }
 
     #[test]
     fn analyse_file_test() {

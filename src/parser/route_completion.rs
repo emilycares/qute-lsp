@@ -85,6 +85,10 @@ fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
     };
     match param_name.as_str() {
         "hx-get" => true,
+        "hx-post" => true,
+        "hx-put" => true,
+        "hx-path" => true,
+        "hx-delete" => true,
         _ => false,
     }
 }
@@ -137,6 +141,7 @@ mod tests {
         let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 63);
         assert_eq!(out, vec![])
     }
+
     #[test]
     fn completion_multi_line() {
         let dm = DashMap::new();
