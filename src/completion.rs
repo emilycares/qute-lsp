@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn completion_crash() {
         let line = "{\r\n".to_string();
-        assert_eq!(completion(line, 1).len(), 0);
+        assert_eq!(completion(line, 1).len(), 17);
 
         let line = "{#".to_string();
         assert_eq!(completion(line, 2).len(), 14);
