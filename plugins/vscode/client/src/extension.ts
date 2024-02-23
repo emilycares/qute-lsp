@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { workspace, ExtensionContext } from 'vscode';
+import { workspace, ExtensionContext, window } from 'vscode';
 
 import {
 	LanguageClient,
@@ -16,7 +16,9 @@ export function activate(context: ExtensionContext) {
 		path.join('..', '..', 'target', 'release', "qute-lsp")
 	);
 
-	console.log(serverModule);
+	//console.log(serverModule);
+	//window.showErrorMessage("dbg: " + serverModule);
+
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used

@@ -5,6 +5,31 @@ struct Completable<'a> {
     detail: &'a str,
 }
 
+impl Completable<'_> {
+    pub fn to_lsp(&self, content: &str) -> CompletionItem {
+        CompletionItem {
+            label: self.label.to_string(),
+            label_details: None,
+            kind: None,
+            detail: Some(self.detail.to_string()),
+            documentation: None,
+            deprecated: None,
+            preselect: None,
+            sort_text: None,
+            filter_text: None,
+            insert_text: Some(content.to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            insert_text_mode: None,
+            text_edit: None,
+            additional_text_edits: None,
+            command: None,
+            commit_characters: None,
+            data: None,
+            tags: None,
+        }
+    }
+}
+
 impl From<&Completable<'_>> for CompletionItem {
     fn from(value: &Completable) -> Self {
         CompletionItem {
@@ -131,25 +156,42 @@ ${0:<h1>Fragment works</h1>}
 }
 
 pub fn completion(line: String, char_pos: usize) -> Vec<CompletionItem> {
-    let line_len = line.trim_end().len() - 1;
-    let chars: &str = match line_len {
-        0 => return vec![],
-        1 => &line[char_pos - 1..char_pos],
-        2 => &line[char_pos - 2..char_pos],
-        3 | _ => &line[char_pos - 3..char_pos],
-    }
-    .trim();
+    let chars = get_characters_before(line, char_pos);
+    let chars = chars.trim();
+
+    let chars = chars.trim_start_matches([
+        ' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
+        'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    ]);
 
     KEYWODS
         .iter()
         .filter(|(_, v)| v.contains(chars))
-        .map(|(c, _)| c.into())
+        // remove prefix if already typed
+        .map(|(c, _)| {
+            if c.label.starts_with(chars) {
+                return c.to_lsp(&c.label[chars.len()..]);
+            }
+            c.to_lsp(c.label)
+        })
+        .map(|c| c.into())
         .collect()
+}
+
+fn get_characters_before(line: String, char_pos: usize) -> String {
+    let char_pos = char_pos.min(line.len());
+    let start_pos = if char_pos >= 3 { char_pos - 3 } else { 0 };
+    let length = char_pos - start_pos;
+    line[start_pos..char_pos]
+        .chars()
+        .take(length)
+        .collect::<String>()
 }
 
 #[cfg(test)]
 mod tests {
     use super::completion;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn completion_crash() {
@@ -167,5 +209,63 @@ mod tests {
 
         let line = "{@whe".to_string();
         assert_eq!(completion(line, 4).len(), 0);
+    }
+
+    #[test]
+    fn completion_trim_prefix() {
+        let line = "{".to_string();
+        let out = completion(line, 1);
+        let out: Vec<Option<String>> = out.into_iter().map(|e| e.insert_text).collect();
+        assert_eq!(
+            out,
+            vec![
+                Some("! $0 !}".to_string()),
+                Some(" $0 }".to_string()),
+                Some("{ $0 }}".to_string()),
+                Some("#for $1 in $2}\n$0\n{/for}".to_string()),
+                Some("#each items}\n$0\n{/each}".to_string()),
+                Some("#let key=value}\n$0\n{/let}".to_string()),
+                Some("#if condition}\n$0\n{/if}".to_string()),
+                Some("#else}$0".to_string()),
+                Some("#when $1}\n$0\n{/when}".to_string()),
+                Some("#is $1}$0".to_string()),
+                Some("#is in $1}$0".to_string()),
+                Some("#switch $1}\n$0\n{/switch}".to_string()),
+                Some("#case $1}$0".to_string()),
+                Some("#with $1}\n$0\n{/with}".to_string()),
+                Some("#include $1 /}$0".to_string()),
+                Some("#fragment id=$1} \n${0:<h1>Fragment works</h1>}\n{/fragment}".to_string()),
+                Some("#cached}$0{/cached}".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn completion_trim_prefix_with_unwanted() {
+        let line = "df{".to_string();
+        let out = completion(line, 3);
+        let out: Vec<Option<String>> = out.into_iter().map(|e| e.insert_text).collect();
+        assert_eq!(
+            out,
+            vec![
+                Some("! $0 !}".to_string()),
+                Some(" $0 }".to_string()),
+                Some("{ $0 }}".to_string()),
+                Some("#for $1 in $2}\n$0\n{/for}".to_string()),
+                Some("#each items}\n$0\n{/each}".to_string()),
+                Some("#let key=value}\n$0\n{/let}".to_string()),
+                Some("#if condition}\n$0\n{/if}".to_string()),
+                Some("#else}$0".to_string()),
+                Some("#when $1}\n$0\n{/when}".to_string()),
+                Some("#is $1}$0".to_string()),
+                Some("#is in $1}$0".to_string()),
+                Some("#switch $1}\n$0\n{/switch}".to_string()),
+                Some("#case $1}$0".to_string()),
+                Some("#with $1}\n$0\n{/with}".to_string()),
+                Some("#include $1 /}$0".to_string()),
+                Some("#fragment id=$1} \n${0:<h1>Fragment works</h1>}\n{/fragment}".to_string()),
+                Some("#cached}$0{/cached}".to_string())
+            ]
+        );
     }
 }

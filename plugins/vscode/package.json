@@ -1,12 +1,12 @@
 {
-	"name": "lsp-sample",
+	"name": "qute-lsp-vscode",
 	"description": "A language server example",
-	"author": "Microsoft Corporation",
+	"author": "micmine",
 	"license": "MIT",
 	"version": "1.0.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Microsoft/vscode-extension-samples"
+		"url": "https://github.com/micmine/qute-lsp"
 	},
 	"publisher": "micmine",
 	"categories": [],
@@ -50,7 +50,7 @@
 		"compile": "tsc -b",
 		"watch": "tsc -b -w",
 		"lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
-		"postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+		"postinstall": "cd client && npm install && cd ..",
 		"test": "sh ./scripts/e2e.sh"
 	},
 	"devDependencies": {
