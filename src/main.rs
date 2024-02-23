@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use dashmap::DashMap;
 use extraction::ExtractionKind;
 use parser::fragemnt::Fragment;
+use parser::route::Route;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -26,6 +27,7 @@ async fn main() {
         client,
         document_map: DashMap::new(),
         fragment_map: DashMap::new(),
+        route_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
@@ -35,6 +37,7 @@ struct Backend {
     client: Client,
     document_map: DashMap<String, Rope>,
     fragment_map: DashMap<String, Fragment>,
+    route_map: DashMap<String, Route>,
 }
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
@@ -102,7 +105,7 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(
-                        [' ', '{', '#', '!'].iter().map(|i| i.to_string()).collect(),
+                        [' ', '{', '#', '!', '/'].iter().map(|i| i.to_string()).collect(),
                     ),
                     ..CompletionOptions::default()
                 }),
@@ -116,6 +119,10 @@ impl LanguageServer for Backend {
         let fragments = parser::fragemnt::scan_templates();
         for fragemnt in fragments {
             self.fragment_map.insert(fragemnt.id.clone(), fragemnt);
+        }
+        let routes = parser::route::scan_routes();
+        for route in routes {
+            self.route_map.insert(route.path.clone(), route);
         }
     }
 
@@ -156,15 +163,23 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let mut out = vec![];
-        out.extend(completion::completion(
+        let route_completion = parser::route_completion::completion(
+            &self.route_map,
             line.to_string(),
             position.character as usize,
-        ));
-        out.extend(parser::fragemnt::completion(
-            &self.fragment_map,
-            line.to_string(),
-            position.character as usize,
-        ));
+        );
+        if route_completion.len() != 0 {
+            out.extend(completion::completion(
+                line.to_string(),
+                position.character as usize,
+            ));
+            out.extend(parser::fragemnt::completion(
+                &self.fragment_map,
+                line.to_string(),
+                position.character as usize,
+            ));
+        }
+        out.extend(route_completion);
         Ok(Some(CompletionResponse::Array(out)))
     }
 
@@ -184,16 +199,14 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let template_folder = get_templates_folder();
-
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
                 QuteInclude::Basic(reference) => {
-                    return Ok(reverence_to_gotodefiniton(&reference, template_folder));
+                    return Ok(reverence_to_gotodefiniton(&reference));
                 }
                 QuteInclude::Fragment(fragment) => {
                     let reference = fragment.template;
-                    return Ok(reverence_to_gotodefiniton(&reference, template_folder));
+                    return Ok(reverence_to_gotodefiniton(&reference));
                 }
             }
         }
@@ -300,11 +313,8 @@ impl LanguageServer for Backend {
     }
 }
 
-fn reverence_to_gotodefiniton(
-    reference: &str,
-    templates_folder: &str,
-) -> Option<GotoDefinitionResponse> {
-    let Some(path) = template_reverence_to_path(reference, templates_folder) else {
+fn reverence_to_gotodefiniton(reference: &str) -> Option<GotoDefinitionResponse> {
+    let Some(path) = template_reverence_to_path(reference) else {
         eprintln!("Unable to get canonicalized path");
         return None;
     };
@@ -317,14 +327,7 @@ fn reverence_to_gotodefiniton(
         Range::default(),
     )))
 }
-
-pub const fn get_templates_folder() -> &'static str {
-    "./src/main/resources/templates/"
-}
-
-fn template_reverence_to_path<'a>(
-    reverence: &'a str,
-    templates_folder: &'a str,
-) -> Option<PathBuf> {
-    std::fs::canonicalize::<PathBuf>(format!("{}{}.html", templates_folder, reverence).into()).ok()
+pub static TEMPLATE_FOLDER: &str = "./src/main/resources/templates/";
+fn template_reverence_to_path<'a>(reverence: &'a str) -> Option<PathBuf> {
+    std::fs::canonicalize::<PathBuf>(format!("{}{}.html", TEMPLATE_FOLDER, reverence).into()).ok()
 }

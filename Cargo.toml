@@ -13,7 +13,7 @@ ropey = "1.6.1"
 tree-sitter = "0.20.10"
 tree-sitter-html = "0.20.0"
 serde_json = "1.0.108"
-#pepegsitter = { version = "0.2.1", features = ["java"] }
+pepegsitter = { version = "0.2.1", features = ["java", "html"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

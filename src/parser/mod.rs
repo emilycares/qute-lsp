@@ -1,4 +1,5 @@
 pub mod commandargs;
 pub mod fragemnt;
 pub mod include;
-mod route;
+pub mod route;
+pub mod route_completion;
