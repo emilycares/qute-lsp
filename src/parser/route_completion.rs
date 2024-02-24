@@ -73,6 +73,10 @@ fn get_completion_items(
     route_map: &DashMap<String, Route>,
 ) -> Option<Vec<CompletionItem>> {
     let param_name = get_param_name(string_node, &content);
+    let already_written = match string_node.utf8_text(content.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => "",
+    };
     if !can_complete_path_for_param_name(param_name) {
         return Some(vec![]);
     }
@@ -80,10 +84,12 @@ fn get_completion_items(
         route_map
             .iter()
             .map(|r| {
-                CompletionItem::new_simple(
-                    r.key().to_string(), /* + optional_close*/
-                    r.value().to_string(),
-                )
+                CompletionItem {
+                    label: r.key().to_string(),
+                    detail: Some(r.value().to_string()),
+                    insert_text: Some(r.key().trim_start_matches(already_written).to_string()),
+                   ..Default::default()
+                }
             })
             .collect::<Vec<_>>(),
     );
@@ -134,12 +140,13 @@ mod tests {
     fn completion_basic() {
         let dm = DashMap::new();
         dm.insert("/start".to_string(), Route::default());
-        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 18);
+        let out = completion(&dm, "<button hx-get=\"/s\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 18);
         assert_eq!(
             out,
             vec![CompletionItem {
                 label: "/start".to_string(),
                 detail: Some("GET: \n".to_string()),
+                insert_text: Some("tart".to_string()),
                 ..CompletionItem::default()
             }]
         )
@@ -156,12 +163,13 @@ mod tests {
     fn completion_multi_line() {
         let dm = DashMap::new();
         dm.insert("/start".to_string(), Route::default());
-        let out = completion(&dm, "hx-get=\"/sel\"".to_string(), 9);
+        let out = completion(&dm, "hx-get=\"/\"".to_string(), 9);
         assert_eq!(
             out,
             vec![CompletionItem {
                 label: "/start".to_string(),
                 detail: Some("GET: \n".to_string()),
+                insert_text: Some("start".to_string()),
                 ..CompletionItem::default()
             }]
         )
