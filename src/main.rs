@@ -105,7 +105,10 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(
-                        [' ', '{', '#', '!', '/'].iter().map(|i| i.to_string()).collect(),
+                        [' ', '{', '#', '!', '/']
+                            .iter()
+                            .map(|i| i.to_string())
+                            .collect(),
                     ),
                     ..CompletionOptions::default()
                 }),
@@ -168,17 +171,15 @@ impl LanguageServer for Backend {
             line.to_string(),
             position.character as usize,
         );
-        if route_completion.len() != 0 {
-            out.extend(completion::completion(
-                line.to_string(),
-                position.character as usize,
-            ));
-            out.extend(parser::fragemnt::completion(
-                &self.fragment_map,
-                line.to_string(),
-                position.character as usize,
-            ));
-        }
+        out.extend(completion::completion(
+            line.to_string(),
+            position.character as usize,
+        ));
+        out.extend(parser::fragemnt::completion(
+            &self.fragment_map,
+            line.to_string(),
+            position.character as usize,
+        ));
         out.extend(route_completion);
         Ok(Some(CompletionResponse::Array(out)))
     }
@@ -328,6 +329,6 @@ fn reverence_to_gotodefiniton(reference: &str) -> Option<GotoDefinitionResponse>
     )))
 }
 pub static TEMPLATE_FOLDER: &str = "./src/main/resources/templates/";
-fn template_reverence_to_path<'a>(reverence: &'a str) -> Option<PathBuf> {
+fn template_reverence_to_path(reverence: &str) -> Option<PathBuf> {
     std::fs::canonicalize::<PathBuf>(format!("{}{}.html", TEMPLATE_FOLDER, reverence).into()).ok()
 }

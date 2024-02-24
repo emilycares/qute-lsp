@@ -41,6 +41,6 @@ public class BasicResource extends asd implements sdf {
     @PUT
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/customer/{name}/{sufix}")
-    public TemplateInstance no_anotation_path_param(String name, int sufix) {
+    public TemplateInstance no_annotation_path_param(String name, int sufix) {
     }
 }
