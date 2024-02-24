@@ -12,13 +12,10 @@ let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
 	// The server is implemented in node
-	const serverModule = context.asAbsolutePath(
-		path.join('..', '..', 'target', 'release', "qute-lsp")
-	);
+	const serverModule = "qute-lsp";
 
 	//console.log(serverModule);
 	//window.showErrorMessage("dbg: " + serverModule);
-
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
