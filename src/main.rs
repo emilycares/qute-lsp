@@ -329,6 +329,6 @@ fn reverence_to_gotodefiniton(reference: &str) -> Option<GotoDefinitionResponse>
     )))
 }
 pub static TEMPLATE_FOLDER: &str = "./src/main/resources/templates/";
-fn template_reverence_to_path<'a>(reverence: &'a str) -> Option<PathBuf> {
+fn template_reverence_to_path(reverence: &str) -> Option<PathBuf> {
     std::fs::canonicalize::<PathBuf>(format!("{}{}.html", TEMPLATE_FOLDER, reverence).into()).ok()
 }

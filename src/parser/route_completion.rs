@@ -35,7 +35,11 @@ pub fn completion(
     vec![]
 }
 
-fn handle_muilty_line<'a, 'b>(route_map: &DashMap<String, Route>,line: &'a str, char_pos: usize) -> Vec<CompletionItem> {
+fn handle_muilty_line(
+    route_map: &DashMap<String, Route>,
+    line: &str,
+    char_pos: usize,
+) -> Vec<CompletionItem> {
     let mut parser = Parser::new();
     let language = tree_sitter_html::language();
     parser
@@ -63,20 +67,26 @@ fn handle_muilty_line<'a, 'b>(route_map: &DashMap<String, Route>,line: &'a str, 
     vec![]
 }
 
-fn get_completion_items(string_node: Node<'_>, content: String, route_map: &DashMap<String, Route>) -> Option<Vec<CompletionItem>> {
+fn get_completion_items(
+    string_node: Node<'_>,
+    content: String,
+    route_map: &DashMap<String, Route>,
+) -> Option<Vec<CompletionItem>> {
     let param_name = get_param_name(string_node, &content);
     if !can_complet_path_for_param_name(param_name) {
         return Some(vec![]);
     }
-    return Some(route_map
-        .iter()
-        .map(|r| {
-            CompletionItem::new_simple(
-                r.key().to_string(), /* + optional_close*/
-                r.value().to_string()
-            )
-        })
-        .collect::<Vec<_>>());
+    return Some(
+        route_map
+            .iter()
+            .map(|r| {
+                CompletionItem::new_simple(
+                    r.key().to_string(), /* + optional_close*/
+                    r.value().to_string(),
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
 }
 
 fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
@@ -93,7 +103,7 @@ fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
     }
 }
 
-fn get_param_name<'a, 'b>(node: Node, content: &'a str) -> Option<String> {
+fn get_param_name(node: Node, content: &str) -> Option<String> {
     let Some(node) = node.prev_sibling() else {
         return None;
     };

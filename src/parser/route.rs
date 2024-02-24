@@ -182,9 +182,7 @@ pub fn scan_routes() -> Vec<Route> {
             .flat_map(|p| {
                 if let Ok(con) = fs::read_to_string(p.clone()) {
                     if let Some(filename) = p.to_str() {
-                        if let Some(file_path) =
-                            std::fs::canonicalize::<PathBuf>(filename.into()).ok()
-                        {
+                        if let Ok(file_path) = std::fs::canonicalize::<PathBuf>(filename.into()) {
                             return Some(analyse_file(file_path, &con));
                         }
                     }
@@ -205,7 +203,7 @@ pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
     parser
         .set_language(language)
         .expect("Error loading java grammar");
-    let Some(tree) = parser.parse(&content, None) else {
+    let Some(tree) = parser.parse(content, None) else {
         return vec![];
     };
     let mut cursor = tree.walk();
@@ -215,7 +213,7 @@ pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
     out
 }
 
-fn analyse_class<'a, 'b>(
+fn analyse_class<'a>(
     file_path: PathBuf,
     content: &'a str,
     cursor: &mut TreeCursor<'a>,
@@ -244,7 +242,7 @@ fn analyse_class<'a, 'b>(
     out
 }
 
-fn analyse_fields<'a, 'b>(
+fn analyse_fields<'a>(
     base_route: Route,
     file_path: PathBuf,
     content: &'a str,
@@ -268,7 +266,7 @@ fn analyse_fields<'a, 'b>(
     out
 }
 
-fn analyse_method<'a, 'b>(
+fn analyse_method<'a>(
     base_route: &Route,
     file_path: PathBuf,
     content: &'a str,
@@ -297,14 +295,10 @@ fn analyse_method<'a, 'b>(
     analyse_method_parameters(&mut route, content, cursor);
     cursor.parent();
 
-    return Some(route);
+    Some(route)
 }
 
-fn analyse_method_parameters<'a, 'b>(
-    route: &mut Route,
-    content: &'a str,
-    cursor: &mut TreeCursor<'a>,
-) {
+fn analyse_method_parameters<'a>(route: &mut Route, content: &'a str, cursor: &mut TreeCursor<'a>) {
     cursor.first_child();
 
     while cursor.sibling() {
@@ -367,7 +361,7 @@ fn analyse_method_parameters<'a, 'b>(
     cursor.parent();
 }
 
-fn analyse_modifiers<'a, 'b>(content: &'a str, cursor: &mut TreeCursor<'a>) -> Option<Route> {
+fn analyse_modifiers<'a>(content: &'a str, cursor: &mut TreeCursor<'a>) -> Option<Route> {
     if cursor.node().kind() != "modifiers" {
         return None;
     }
@@ -380,11 +374,7 @@ fn analyse_modifiers<'a, 'b>(content: &'a str, cursor: &mut TreeCursor<'a>) -> O
     None
 }
 
-fn analyse_modifier<'a, 'b>(
-    route: &mut Route,
-    content: &'a str,
-    cursor: &mut TreeCursor<'a>,
-) -> bool {
+fn analyse_modifier<'a>(route: &mut Route, content: &'a str, cursor: &mut TreeCursor<'a>) -> bool {
     //dbg!(cursor.node().utf8_text(content.as_bytes()).unwrap());
     let mut changed = false;
     match cursor.node().kind() {
@@ -454,7 +444,7 @@ fn analyse_modifier<'a, 'b>(
     changed
 }
 
-fn skip_comments<'a>(cursor: &mut TreeCursor<'a>) -> bool {
+fn skip_comments(cursor: &mut TreeCursor<'_>) -> bool {
     match cursor.node().kind() {
         "block_comment" | "line_comment" => {
             if !cursor.goto_next_sibling() {
@@ -466,7 +456,7 @@ fn skip_comments<'a>(cursor: &mut TreeCursor<'a>) -> bool {
     }
 }
 
-fn initialise_paramters<'a, 'b>(path: &'a str) -> Vec<Parameter> {
+fn initialise_paramters(path: &'_ str) -> Vec<Parameter> {
     let mut out = vec![];
     let mut name = String::new();
     for char in path.chars() {
@@ -537,7 +527,7 @@ fn skip_head(cursor: &mut TreeCursor<'_>) {
         skip_head(cursor);
     }
 }
-fn handel_classes<'a, 'b>(
+fn handel_classes<'a>(
     file_path: PathBuf,
     content: &'a str,
     cursor: &mut TreeCursor<'a>,

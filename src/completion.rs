@@ -174,7 +174,6 @@ pub fn completion(line: String, char_pos: usize) -> Vec<CompletionItem> {
             }
             c.to_lsp(c.label)
         })
-        .map(|c| c.into())
         .collect()
 }
 
