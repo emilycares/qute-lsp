@@ -83,7 +83,7 @@
 //linecomment
     /*c*/@/*c*/Path/*c*/(/*c*/"/customer/{name}/{sufix}"/*c*/)/*c*/
 //linecomment
-    /*c*/public/*c*/ TemplateInstance/*c*/ no_anotation_path_param/*c*/(/*c*/String/*c*/ name/*c*/,/*c*/ int/*c*/ sufix/*c*/)/*c*/ {/*c*/
+    /*c*/public/*c*/ TemplateInstance/*c*/ no_annotation_path_param/*c*/(/*c*/String/*c*/ name/*c*/,/*c*/ int/*c*/ sufix/*c*/)/*c*/ {/*c*/
 //linecomment
     /*c*/}/*c*/
 //linecomment

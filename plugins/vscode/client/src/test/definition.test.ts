@@ -20,12 +20,12 @@ function toRange(sLine: number, sChar: number, eLine: number, eChar: number) {
 	return new vscode.Range(start, end);
 }
 
-async function testDefinition(docUri: vscode.Uri, expectedDefiniton: vscode.Definition) {
+async function testDefinition(docUri: vscode.Uri, expectedDefinition: vscode.Definition) {
 
 	await activate(docUri);
 
 	const position = new vscode.Position(0, 0);
 	const actualDefinition = await vscode.commands.executeCommand("editor.action.goToDefinition", docUri, position);
 
-	assert.equal(actualDefinition, expectedDefiniton);
+	assert.equal(actualDefinition, expectedDefinition);
 }

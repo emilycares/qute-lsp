@@ -45,7 +45,7 @@ fn handle_muilty_line(
     parser
         .set_language(language)
         .expect("Error loading html grammar");
-    let content = format!("<button {}></buton>", line);
+    let content = format!("<button {}></button>", line);
     let Some(tree) = parser.parse(&content, None) else {
         return vec![];
     };
@@ -73,7 +73,7 @@ fn get_completion_items(
     route_map: &DashMap<String, Route>,
 ) -> Option<Vec<CompletionItem>> {
     let param_name = get_param_name(string_node, &content);
-    if !can_complet_path_for_param_name(param_name) {
+    if !can_complete_path_for_param_name(param_name) {
         return Some(vec![]);
     }
     return Some(
@@ -89,7 +89,7 @@ fn get_completion_items(
     );
 }
 
-fn can_complet_path_for_param_name(param_name: Option<String>) -> bool {
+fn can_complete_path_for_param_name(param_name: Option<String>) -> bool {
     let Some(param_name) = param_name else {
         return false;
     };

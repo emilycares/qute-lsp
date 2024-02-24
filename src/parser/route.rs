@@ -209,7 +209,7 @@ pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
     let mut cursor = tree.walk();
     cursor.first_child();
     skip_head(&mut cursor);
-    out.extend(handel_classes(file_path, content, &mut cursor));
+    out.extend(handle_classes(file_path, content, &mut cursor));
     out
 }
 
@@ -392,7 +392,7 @@ fn analyse_modifier<'a>(route: &mut Route, content: &'a str, cursor: &mut TreeCu
                         if let Ok(path) = cursor.node().utf8_text(content.as_bytes()) {
                             route.path += path;
                             changed = true;
-                            route.parameters.extend(initialise_paramters(path))
+                            route.parameters.extend(initialise_parameters(path))
                         }
                         cursor.parent();
                         cursor.parent();
@@ -456,7 +456,7 @@ fn skip_comments(cursor: &mut TreeCursor<'_>) -> bool {
     }
 }
 
-fn initialise_paramters(path: &'_ str) -> Vec<Parameter> {
+fn initialise_parameters(path: &'_ str) -> Vec<Parameter> {
     let mut out = vec![];
     let mut name = String::new();
     for char in path.chars() {
@@ -527,7 +527,7 @@ fn skip_head(cursor: &mut TreeCursor<'_>) {
         skip_head(cursor);
     }
 }
-fn handel_classes<'a>(
+fn handle_classes<'a>(
     file_path: PathBuf,
     content: &'a str,
     cursor: &mut TreeCursor<'a>,
@@ -538,7 +538,7 @@ fn handel_classes<'a>(
         out.extend(analyse_class(file_path.clone().clone(), content, cursor));
         // when there is a sibling then also scann that class
         if cursor.sibling() {
-            out.extend(handel_classes(file_path, content, cursor));
+            out.extend(handle_classes(file_path, content, cursor));
         }
     }
     out
