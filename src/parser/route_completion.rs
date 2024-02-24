@@ -100,6 +100,9 @@ fn can_complete_path_for_param_name(param_name: Option<String>) -> bool {
         return false;
     };
     match param_name.as_str() {
+        // html
+        "action" => true,
+        // htmx
         "hx-get" => true,
         "hx-post" => true,
         "hx-put" => true,
