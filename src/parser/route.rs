@@ -199,7 +199,7 @@ pub fn scan_routes() -> Vec<Route> {
 pub fn analyse_file(file_path: PathBuf, content: &str) -> Vec<Route> {
     let mut out = vec![];
     let mut parser = Parser::new();
-    let language = pepegsitter::java::language();
+    let language = tree_sitter_java::language();
     parser
         .set_language(language)
         .expect("Error loading java grammar");
