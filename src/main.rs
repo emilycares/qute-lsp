@@ -66,7 +66,11 @@ impl Backend {
             return Some(document);
         };
 
-        let Ok(text) = std::fs::read_to_string(uri.path()) else {
+        let mut path = uri.path();
+        if cfg!(windows) {
+            path = path.trim_start_matches('/');
+        }
+        let Ok(text) = std::fs::read_to_string(path) else {
             eprintln!("Unable to open file and it is also not available on the client");
             return None;
         };
