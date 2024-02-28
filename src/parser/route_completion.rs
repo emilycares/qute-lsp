@@ -1,67 +1,30 @@
 use dashmap::DashMap;
 use tower_lsp::lsp_types::CompletionItem;
-use tree_sitter::{Node, Parser};
+use tree_sitter::Node;
+
+use crate::parser::html_utils::html_inline;
 
 use super::route::Route;
 
 pub fn completion(
     route_map: &DashMap<String, Route>,
-    line: String,
-    char_pos: usize,
-) -> Vec<CompletionItem> {
-    let content = line.to_owned();
-    let mut parser = Parser::new();
-    let language = tree_sitter_html::language();
-    parser
-        .set_language(language)
-        .expect("Error loading html grammar");
-    let Some(tree) = parser.parse(&content, None) else {
-        return vec![];
-    };
-    let mut cursor = tree.walk();
-    for _ in 0..50 {
-        cursor.goto_first_child_for_point(tree_sitter::Point {
-            row: 0,
-            column: char_pos,
-        });
-    }
-    let string_node = cursor.node();
-    if string_node.kind() != "attribute_value" {
-        return handle_muilty_line(route_map, &content, char_pos);
-    }
-    if let Some(value) = get_completion_items(string_node, content, route_map) {
-        return value;
-    }
-    vec![]
-}
-
-fn handle_muilty_line(
-    route_map: &DashMap<String, Route>,
     line: &str,
     char_pos: usize,
 ) -> Vec<CompletionItem> {
-    let mut parser = Parser::new();
-    let language = tree_sitter_html::language();
-    parser
-        .set_language(language)
-        .expect("Error loading html grammar");
-    let content = format!("<button {}></button>", line);
-    let Some(tree) = parser.parse(&content, None) else {
+    let Some((tree, line)) = html_inline(line) else {
         return vec![];
     };
     let mut cursor = tree.walk();
-    for _ in 0..50 {
+    for _i in 0..10 {
         cursor.goto_first_child_for_point(tree_sitter::Point {
             row: 0,
             column: char_pos + 8,
         });
     }
-    let string_node = cursor.node();
-    if string_node.kind() != "attribute_value" {
-        cursor.reset(tree.root_node());
+    if &cursor.node().kind() != &"attribute_value" {
         return vec![];
     }
-    if let Some(value) = get_completion_items(string_node, content, route_map) {
+    if let Some(value) = get_completion_items(cursor.node(), line, route_map) {
         return value;
     }
     vec![]
@@ -143,7 +106,7 @@ mod tests {
     fn completion_basic() {
         let dm = DashMap::new();
         dm.insert("/start".to_string(), Route::default());
-        let out = completion(&dm, "<button hx-get=\"/s\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 18);
+        let out = completion(&dm, "<button hx-get=\"/s\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>", 18);
         assert_eq!(
             out,
             vec![CompletionItem {
@@ -158,7 +121,7 @@ mod tests {
     fn completion_basic_not() {
         let dm = DashMap::new();
         dm.insert("".to_string(), Route::default());
-        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>".to_string(), 63);
+        let out = completion(&dm, "<button hx-get=\"/sel\" hx-trigger=\"click\" hx-target=\"#selectStyle\" hx-swap=\"outerHTML\"></button>", 63);
         assert_eq!(out, vec![])
     }
 
@@ -166,7 +129,7 @@ mod tests {
     fn completion_multi_line() {
         let dm = DashMap::new();
         dm.insert("/start".to_string(), Route::default());
-        let out = completion(&dm, "hx-get=\"/\"".to_string(), 9);
+        let out = completion(&dm, "hx-get=\"/\"", 9);
         assert_eq!(
             out,
             vec![CompletionItem {
