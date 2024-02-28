@@ -199,6 +199,9 @@ impl LanguageServer for Backend {
             eprintln!("Unable to read the line referecned");
             return Ok(None);
         };
+        if let Some(definition) = parser::route_definiton::get_definition(&self.route_map, line.as_str().unwrap_or_default(), &position) {
+            return Ok(Some(definition));
+        }
 
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
