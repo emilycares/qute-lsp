@@ -168,7 +168,7 @@ impl LanguageServer for Backend {
         let mut out = vec![];
         let route_completion = parser::route_completion::completion(
             &self.route_map,
-            line.to_string(),
+            line.as_str().unwrap_or_default(),
             position.character as usize,
         );
         out.extend(completion::completion(
@@ -199,6 +199,9 @@ impl LanguageServer for Backend {
             eprintln!("Unable to read the line referecned");
             return Ok(None);
         };
+        if let Some(definition) = parser::route_definiton::get_definition(&self.route_map, line.as_str().unwrap_or_default(), &position) {
+            return Ok(Some(definition));
+        }
 
         if let Some(include) = parser::include::parse_include(line.to_string()) {
             match include {
