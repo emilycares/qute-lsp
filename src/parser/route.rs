@@ -3,12 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::Serialize;
 use tower_lsp::lsp_types::{Location, Url};
 use tree_sitter::{Parser, TreeCursor};
 
 use crate::{extraction::to_lsp_position, file_utils::find_files};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Route {
     pub implementation: Option<Location>,
     pub method: HttpMethod,
@@ -100,7 +101,7 @@ impl ToString for HttpMethod {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum MediaType {
     ///A String constant representing "application/atom+xml" media type.
     ApplicationAtomXml,
@@ -131,7 +132,7 @@ pub enum MediaType {
     TextXml,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum HttpMethod {
     Get,
     Head,
@@ -143,7 +144,7 @@ pub enum HttpMethod {
     Patch,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Parameter {
     pub name: String,
     pub java_type: ParameterType,
@@ -154,7 +155,7 @@ impl ToString for &Parameter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum ParameterType {
     String,
     Int,

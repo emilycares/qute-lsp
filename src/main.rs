@@ -1,10 +1,12 @@
 pub mod completion;
+mod config;
 mod extraction;
 mod file_utils;
 mod parser;
 
 use std::path::PathBuf;
 
+use config::Args;
 use dashmap::DashMap;
 use extraction::ExtractionKind;
 use parser::fragemnt::Fragment;
@@ -17,9 +19,20 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tree_sitter::Point;
 
 use crate::parser::include::QuteInclude;
+use clap::Parser;
 
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+    if args.get_routes {
+        let routes = parser::route::scan_routes();
+        let Ok(strout) = serde_json::to_string(&routes) else {
+            eprintln!("There was an error converting the data to json");
+            return;
+        };
+        println!("{}", strout);
+        return;
+    }
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
@@ -199,7 +212,11 @@ impl LanguageServer for Backend {
             eprintln!("Unable to read the line referecned");
             return Ok(None);
         };
-        if let Some(definition) = parser::route_definiton::get_definition(&self.route_map, line.as_str().unwrap_or_default(), &position) {
+        if let Some(definition) = parser::route_definiton::get_definition(
+            &self.route_map,
+            line.as_str().unwrap_or_default(),
+            &position,
+        ) {
             return Ok(Some(definition));
         }
 

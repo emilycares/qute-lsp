@@ -45,12 +45,12 @@ impl FromStr for ExtractionKind {
 pub fn check_extract(content: &str, point: Point) -> Vec<ExtractionKind> {
     let mut out = vec![];
     let language = tree_sitter_html::language();
-    match get_tree(content, language) {
+    match get_tree(content, &language) {
         Ok(tree) => match get_node_at_point(&tree, point) {
             Ok(node) => match get_element_node(node) {
                 Ok(node) => {
                     out.push(ExtractionKind::AddFragment);
-                    match get_id_of_node(language, node, content) {
+                    match get_id_of_node(&language, node, content) {
                         Ok(_) => {
                             out.push(ExtractionKind::ExtractAsFile);
                             out.push(ExtractionKind::ExtractAsFragment);
@@ -75,7 +75,7 @@ pub fn add_fragment(
 ) -> Result<HashMap<Url, Vec<TextEdit>>, TreesitterError> {
     // parse
     let language = tree_sitter_html::language();
-    let tree = get_tree(content, language)?;
+    let tree = get_tree(content, &language)?;
     let node = get_node_at_point(&tree, point)?;
     let node = get_element_node(node)?;
 
@@ -161,7 +161,7 @@ struct BaseExtract {
 fn base_extract(content: &str, point: Point, url: String) -> Result<BaseExtract, TreesitterError> {
     // parse
     let language = tree_sitter_html::language();
-    let tree = get_tree(content, language)?;
+    let tree = get_tree(content, &language)?;
     let node = get_node_at_point(&tree, point)?;
     let node = get_element_node(node)?;
 
@@ -171,7 +171,7 @@ fn base_extract(content: &str, point: Point, url: String) -> Result<BaseExtract,
     let start = to_lsp_position(inner.start_point);
 
     // get content for generation
-    let id = get_id_of_node(language, node, content)?;
+    let id = get_id_of_node(&language, node, content)?;
     let Ok(new_content) = node.utf8_text(content.as_bytes()) else {
         return Err(TreesitterError::UnableToGetContent);
     };
@@ -207,7 +207,7 @@ pub fn to_lsp_position(point: Point) -> tower_lsp::lsp_types::Position {
 }
 
 fn get_id_of_node<'a>(
-    language: Language,
+    language: &Language,
     node: Node<'a>,
     content: &'a str,
 ) -> Result<String, TreesitterError> {
@@ -221,7 +221,7 @@ fn get_id_of_node<'a>(
      ) 
     )
   )";
-    let query = match Query::new(language, query) {
+    let query = match Query::new(*language, query) {
         Ok(query) => query,
         Err(_) => return Err(TreesitterError::UnableToParse),
     };
@@ -291,9 +291,9 @@ fn get_element_node(node: Node<'_>) -> Result<Node<'_>, TreesitterError> {
     }
 }
 
-fn get_tree(content: &str, language: Language) -> Result<Tree, TreesitterError> {
+fn get_tree(content: &str, language: &Language) -> Result<Tree, TreesitterError> {
     let mut parser = Parser::new();
-    if parser.set_language(language).is_err() {
+    if parser.set_language(*language).is_err() {
         return Err(TreesitterError::UnableToParse);
     };
 
@@ -347,17 +347,17 @@ mod tests {
     #[test]
     fn get_id_of_node_basic() {
         let language = tree_sitter_html::language();
-        let tree = get_tree(DOCUMENT, language).unwrap();
+        let tree = get_tree(DOCUMENT, &language).unwrap();
         let point = tree_sitter::Point { row: 7, column: 2 };
         let node = get_node_at_point(&tree, point).unwrap();
         let node = get_element_node(node).unwrap();
-        let id = get_id_of_node(language, node, DOCUMENT);
+        let id = get_id_of_node(&language, node, DOCUMENT);
         assert_eq!(id, Ok("did".to_string()));
     }
     #[test]
     fn get_tree_basic() {
         let language = tree_sitter_html::language();
-        assert!(get_tree(DOCUMENT, language).is_ok());
+        assert!(get_tree(DOCUMENT, &language).is_ok());
     }
 
     #[test]
