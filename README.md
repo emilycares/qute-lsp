@@ -49,3 +49,30 @@ if not configs.qute_lsp then
 end
 require("lspconfig").qute_lsp.setup({ ...... })
 ```
+# Get routes data for a fuzzy finder example
+## Dependencies
+  - qute-lsp
+  - jq
+  - fzf
+
+Tip: You can change nvim to idea-community without any problem
+
+## bash
+``` bash
+qute-lsp --get-routes \
+  | jq -r '.[] | .path + " " + (.implementation.uri | split("file://")[1])' \
+  | fzf \
+  | cut -d' ' -f2 \
+  | xargs nvim
+```
+
+## nushell
+``` nushell
+qute-lsp --get-routes \
+  | jq -r '.[] | .path + " " + (.implementation.uri | split("file://")[1])' \
+  | fzf \
+  | split column " " \
+  | get column2 \
+  | str trim \
+  | nvim $in
+```
