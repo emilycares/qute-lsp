@@ -65,6 +65,20 @@
 //linecomment
 
 //linecomment
+    /*c*/@/*c*/GET/*c*/
+//linecomment
+    /*c*/@/*c*/Produces/*c*/(/*c*/MediaType/*c*/./*c*/TEXT_HTML/*c*/)/*c*/
+//linecomment
+    /*c*/@/*c*/Path/*c*/(/*c*/"no_starting_slash/{name}"/*c*/)/*c*/
+//linecomment
+    /*c*/public/*c*/ TemplateInstance/*c*/ no_starting_slash/*c*/(@/*c*/PathParam/*c*/(/*c*/"name"/*c*/)/*c*/ String/*c*/ name/*c*/)/*c*/ {/*c*/
+//linecomment
+            /*c*/return/*c*/ hello/*c*/./*c*/data/*c*/(/*c*/"name"/*c*/,/*c*/ name/*c*/)/*c*/;/*c*/
+//linecomment
+    /*c*/}/*c*/
+//linecomment
+
+//linecomment
     /*c*/@/*c*/PUT/*c*/
 //linecomment
     /*c*/@/*c*/Produces/*c*/(/*c*/MediaType/*c*/./*c*/APPLICATION_JSON/*c*/)/*c*/

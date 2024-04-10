@@ -391,7 +391,11 @@ fn analyse_modifier<'a>(route: &mut Route, content: &'a str, cursor: &mut TreeCu
                         cursor.first_child();
                         cursor.sibling();
                         if let Ok(path) = cursor.node().utf8_text(content.as_bytes()) {
-                            route.path += path;
+                            if path.starts_with('/') {
+                                route.path += path;
+                            } else {
+                                route.path += format!("/{path}").as_str();
+                            }
                             changed = true;
                             route.parameters.extend(initialise_parameters(path))
                         }
@@ -580,6 +584,16 @@ mod tests {
                     implementation: None,
                     method: HttpMethod::Get,
                     path: "/hello/customer/{name}".to_string(),
+                    parameters: vec![Parameter {
+                        name: "name".to_owned(),
+                        java_type: ParameterType::String
+                    }],
+                    produces_type: MediaType::TextHtml
+                },
+                Route {
+                    implementation: None,
+                    method: HttpMethod::Get,
+                    path: "/hello/no_starting_slash/{name}".to_string(),
                     parameters: vec![Parameter {
                         name: "name".to_owned(),
                         java_type: ParameterType::String

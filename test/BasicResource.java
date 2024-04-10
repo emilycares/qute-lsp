@@ -32,6 +32,13 @@ public class BasicResource extends asd implements sdf {
             return hello.data("name", name);
     }
 
+    @GET
+    @Produces(MediaType.TEXT_HTML)
+    @Path("no_starting_slash/{name}")
+    public TemplateInstance no_starting_slash(@PathParam("name") String name) {
+            return hello.data("name", name);
+    }
+
     @PUT
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/customer/{name}/{sufix}")
