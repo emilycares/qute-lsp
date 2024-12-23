@@ -1,4 +1,4 @@
-package ch.micmine;
+package ch.emilycares;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -22,7 +22,7 @@ public class BasicResource extends asd implements sdf {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance hello() {
-            return hello.data("name", "micmine");
+            return hello.data("name", "emilycares");
     }
 
     @GET

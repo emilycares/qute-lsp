@@ -1,5 +1,5 @@
 //linecomment
-/*c*/package/*c*/ ch/*c*/./*c*/micmine/*c*/;/*c*/
+/*c*/package/*c*/ ch/*c*/./*c*/emilycares/*c*/;/*c*/
 //linecomment
 
 /*c<*/import/*c<*/ /*c<*/jakarta/*c<*/./*c<*/inject/*c<*/.Inject/*c<*/;
@@ -45,7 +45,7 @@
 //linecomment
     /*c*/public/*c*/ TemplateInstance/*c*/ hello/*c*/()/*c*/ {/*c*/
 //linecomment
-            /*c*/return/*c*/ hello/*c*/./*c*/data/*c*/(/*c*/"name"/*c*/,/*c*/ "micmine"/*c*/)/*c*/;/*c*/
+            /*c*/return/*c*/ hello/*c*/./*c*/data/*c*/(/*c*/"name"/*c*/,/*c*/ "emilycares"/*c*/)/*c*/;/*c*/
 //linecomment
     /*c*/}
 //linecomment

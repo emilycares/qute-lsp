@@ -1,14 +1,14 @@
 {
 	"name": "qute-lsp-vscode",
 	"description": "A language server example",
-	"author": "micmine",
+	"author": "emilycares",
 	"license": "MIT",
 	"version": "1.0.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/micmine/qute-lsp"
+		"url": "https://github.com/emilycares/qute-lsp"
 	},
-	"publisher": "micmine",
+	"publisher": "emilycares",
 	"categories": [],
 	"keywords": [
 		"multi-root ready"
